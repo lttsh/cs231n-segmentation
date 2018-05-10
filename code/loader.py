@@ -5,16 +5,33 @@ import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import numpy as np
 
-class CocoStuffLoader(dset.CocoDetection):
+class CocoStufDataSet(dset.CocoDetection):
+    '''
+    Custom dataset
+    '''
     def __init__(
             self, img_dir='../cocostuff/images/',
             annot_dir='../cocostuff/annotations/',
-            mode='train'):
-        super(CocoStuffLoader, self).__init__(
+            mode='train', categories=None, supercategories=None):
+        super(CocoStufDataSet, self).__init__(
             root=img_dir + mode + '2017/',
             annFile=annot_dir+'instances_'+mode+'2017.json',
             transform=transforms.ToTensor())
+        self.cats = categories ## List of categories to load
+        if self.cats is not None:
+            catIds = self.coco.getCatIds(catNms=self.cats)
+            self.ids=[]
+            for id in catIds:
+                self.ids += self.coco.getImgIds(catIds=[id])
+                self.ids = list(set(self.ids))
 
+        self.supercats = supercategories
+        if self.supercats is not None:
+            catIds = self.coco.getCatIds(supNms=self.supercats)
+            self.ids=[]
+            for id in catIds:
+                self.ids += self.coco.getImgIds(catIds=[id])
+                self.ids = list(set(self.ids))
         print('Loaded %d samples: ' % len(self))
 
     def display(self, img_id):
@@ -33,5 +50,5 @@ class CocoStuffLoader(dset.CocoDetection):
         plt.title('annotated image')
         plt.show()
 
-cocostuff = CocoStuffLoader()
+cocostuff = CocoStufDataSet(supercategories=['animal'])
 cocostuff.display(0)
