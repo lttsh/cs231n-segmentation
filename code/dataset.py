@@ -95,6 +95,10 @@ class CocoStuffDataSet(dset.CocoDetection):
         print ("There are %f of images at max height and %f at max width" %
             (np.mean(heights==self.max_height), np.mean(widths==self.max_width)))
 
+        for catId in self.catIds:
+            ids = self.coco.getImgIds(catIds=catId)
+            print ("%f images contain category %d" % (float(len(ids))/float(len(self)), catId))
+
     def display(self, img_id):
         img, masks = self[img_id]
         print("Image Size: ", img.size())
@@ -116,6 +120,6 @@ class CocoStuffDataSet(dset.CocoDetection):
 
 ## Display
 cocostuff = CocoStuffDataSet(supercategories=['animal'])
-cocostuff.display(np.random.randint(low=0, high=22000))
+cocostuff.display(np.random.randint(low=0, high=220))
 
 cocostuff.gather_stats()
