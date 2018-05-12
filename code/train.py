@@ -1,11 +1,10 @@
 import torch
-import torch.nn as nn
 import torch.optim as optim
+import torch.nn as nn
 from torch.utils.data import DataLoader
-import CocoStuffDataSet
+from dataset import CocoStuffDataSet
+from model import SegNetSmall
 
-train_loader = DataLoader(CocoStuffDataSet(mode='train'), batch_size=32, shuffle=True)
-val_loader = DataLoader(CocoStuffDataSet(mode='val'), batch_size=32, shuffle=False)
 
 class Trainer():
     def __init__(self, net, train_loader, val_loader):
@@ -34,13 +33,14 @@ class Trainer():
             loss: (float) loss computed by self._criterion on input minibatch
         """
         self._optimizer.zero_grad()
-        out = self._net(batch_data)
-        loss = self._criterion(out, batch_labels)
+        out = self._net(mini_batch_data)
+        loss = self._criterion(out, mini_batch_labels)
         loss.backward()
         self._optimizer.step()
 
         return loss
 
+    #TODO: Add validation accuracy metric
     def train(self, num_epochs, print_every=100):
         """
         Trains the model for a specified number of epochs
@@ -51,7 +51,7 @@ class Trainer():
         """
         print_i = 0
         for epoch in range(num_epochs):
-            print "Starting epoch {}".format(epoch)
+            print("Starting epoch {}".format(epoch))
             for mini_batch_data, mini_batch_labels in self._train_loader:
                 loss = self._train_batch(mini_batch_data, mini_batch_labels)
                 if print_i % print_every == 0:
@@ -60,8 +60,15 @@ class Trainer():
 
             # for batch_data, batch_labels in sef._val_loader:
 
+if __name__ == '__main__':
+    num_classes = 10
+    net = SegNetSmall(num_classes, pretrained=True)
+    train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train'), batch_size=32, shuffle=True)
+    val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val'), batch_size=32, shuffle=False)
+    
+    trainer = Trainer(net, train_loader, val_loader)
 
-
+    trainer.train(num_epochs=5, print_every=10)
 
 
 

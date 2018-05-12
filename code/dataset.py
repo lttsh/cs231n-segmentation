@@ -26,7 +26,7 @@ class CocoStuffDataSet(dset.CocoDetection):
                 transforms.Resize((height, width)),
                 transforms.ToTensor()
             ])
-        super(CocoStuffDataSet, self).__init__(
+        super().__init__(
             root=img_dir + mode + '2017/',
             annFile=annot_dir+'instances_'+mode+'2017.json',
             transform=transform)
@@ -118,8 +118,9 @@ class CocoStuffDataSet(dset.CocoDetection):
         plt.title('annotated image')
         plt.show()
 
-## Display
-cocostuff = CocoStuffDataSet(supercategories=['animal'])
-cocostuff.display(np.random.randint(low=0, high=220))
+if __name__ == "__main__":
+    ## Display
+    cocostuff = CocoStuffDataSet(supercategories=['animal'])
+    cocostuff.display(np.random.randint(low=0, high=220))
 
-cocostuff.gather_stats()
+    cocostuff.gather_stats()
