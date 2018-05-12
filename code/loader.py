@@ -5,7 +5,7 @@ import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import numpy as np
 
-class CocoStufDataSet(dset.CocoDetection):
+class CocoStuffDataSet(dset.CocoDetection):
     '''
     Custom dataset
     '''
@@ -13,7 +13,7 @@ class CocoStufDataSet(dset.CocoDetection):
             self, img_dir='../cocostuff/images/',
             annot_dir='../cocostuff/annotations/',
             mode='train', categories=None, supercategories=None):
-        super(CocoStufDataSet, self).__init__(
+        super().__init__(
             root=img_dir + mode + '2017/',
             annFile=annot_dir+'instances_'+mode+'2017.json',
             transform=transforms.ToTensor())
@@ -50,5 +50,5 @@ class CocoStufDataSet(dset.CocoDetection):
         plt.title('annotated image')
         plt.show()
 
-cocostuff = CocoStufDataSet(supercategories=['animal'])
+cocostuff = CocoStuffDataSet(supercategories=['animal'])
 cocostuff.display(0)
