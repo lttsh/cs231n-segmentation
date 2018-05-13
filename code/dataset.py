@@ -26,7 +26,7 @@ class CocoStuffDataSet(dset.CocoDetection):
                 transforms.Resize((height, width)),
                 transforms.ToTensor()
             ])
-        super(CocoStuffDataSet, self).__init__(
+        super().__init__(
             root=img_dir + mode + '2017/',
             annFile=annot_dir+'instances_'+mode+'2017.json',
             transform=transform)
@@ -80,6 +80,7 @@ class CocoStuffDataSet(dset.CocoDetection):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
+        masks = np.argmax(masks, axis=0)
         return img, masks
 
     def gather_stats(self):
