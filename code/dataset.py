@@ -30,6 +30,7 @@ class CocoStuffDataSet(dset.CocoDetection):
             root=img_dir + mode + '2017/',
             annFile=annot_dir+'instances_'+mode+'2017.json',
             transform=transform)
+
         self.width = width # Resize width
         self.height = height # Resize height
         self.cats = categories # Categories to load
@@ -48,6 +49,8 @@ class CocoStuffDataSet(dset.CocoDetection):
             for id in self.catIds:
                 self.ids += self.coco.getImgIds(catIds=[id])
                 self.ids = list(set(self.ids))
+
+        self.numClasses = len(self.ids)
         print('Loaded %d samples: ' % len(self))
 
     def __getitem__(self, index):
@@ -118,8 +121,9 @@ class CocoStuffDataSet(dset.CocoDetection):
         plt.title('annotated image')
         plt.show()
 
-## Display
-cocostuff = CocoStuffDataSet(supercategories=['animal'])
-cocostuff.display(np.random.randint(low=0, high=220))
+if __name__ == "__main__":
+    ## Display
+    cocostuff = CocoStuffDataSet(supercategories=['animal'])
+    cocostuff.display(np.random.randint(low=0, high=220))
 
-cocostuff.gather_stats()
+    cocostuff.gather_stats()
