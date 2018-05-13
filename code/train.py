@@ -170,7 +170,7 @@ if __name__ == "__main__":
         mIOU += 1.0 / numClasses * torch.sum(truepos / (totalpix + falsepos))
     print(1.0 / total * mIOU)
 
-    num_classes = 10
+    num_classes = 11
     batch_size = 1
     net = SegNetSmall(num_classes, pretrained=True)
     train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train'), batch_size, shuffle=True)

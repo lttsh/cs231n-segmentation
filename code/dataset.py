@@ -50,7 +50,7 @@ class CocoStuffDataSet(dset.CocoDetection):
                 self.ids += self.coco.getImgIds(catIds=[id])
                 self.ids = list(set(self.ids))
 
-        self.numClasses = len(self.ids)
+        self.numClasses = len(self.catIds) + 1
         print('Loaded %d samples: ' % len(self))
 
     def __getitem__(self, index):
@@ -60,7 +60,7 @@ class CocoStuffDataSet(dset.CocoDetection):
         Returns:
             tuple: Tuple (image, mask).
                 'image' ND array of size (3, H, W)
-                'mask' ND array of size (C, H, W) where C is the number of categories
+                'mask' ND array of size (C + 1, H, W) where C is the number of categories ( + 1 for background category)
         """
         coco = self.coco
         img_id = self.ids[index]
@@ -72,11 +72,14 @@ class CocoStuffDataSet(dset.CocoDetection):
         if self.transform is not None:
             img = self.transform(img)
 
-        masks = np.zeros((len(self.catIds), self.width, self.height))
+        masks = np.zeros((self.numClasses, self.width, self.height))
         for ann in target:
             if ann['category_id'] in self.catIds:
                 masks[self.catIds.index(ann['category_id'])] += \
                     misc.imresize(self.coco.annToMask(ann), (self.width, self.height))
+
+        # Create background mask
+        masks[-1] = 1 - np.sum(masks[:-1, : , :], 0)
         if self.target_transform is not None:
             target = self.target_transform(target)
 
@@ -114,10 +117,8 @@ class CocoStuffDataSet(dset.CocoDetection):
         plt.title('original image')
         plt.subplot(122)
         plt.imshow(display_image)
-        for i in range(len(self.catIds)):
-            if np.sum(masks[i]) > 0:
-                print ("This image contains category %d" % self.catIds[i])
-                plt.imshow(masks[i])
+        plt.imshow(masks, alpha=1.0)
+        # plt.imshow(masks[-1], alpha=1.0)
         plt.axis('off')
         plt.title('annotated image')
         plt.show()
@@ -126,5 +127,4 @@ if __name__ == "__main__":
     ## Display
     cocostuff = CocoStuffDataSet(supercategories=['animal'])
     cocostuff.display(np.random.randint(low=0, high=220))
-
     cocostuff.gather_stats()
