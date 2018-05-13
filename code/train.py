@@ -62,9 +62,10 @@ class Trainer():
 
 if __name__ == '__main__':
     num_classes = 10
+    batch_size = 1
     net = SegNetSmall(num_classes, pretrained=True)
-    train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train'), batch_size=32, shuffle=True)
-    val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val'), batch_size=32, shuffle=False)
+    train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train'), batch_size, shuffle=True)
+    val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val'), batch_size, shuffle=False)
     
     trainer = Trainer(net, train_loader, val_loader)
 
