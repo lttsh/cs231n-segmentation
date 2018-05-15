@@ -128,8 +128,13 @@ class Trainer():
             'epoch': epoch + 1,
             'gen_dict': self._gen.state_dict(),
             'best_mIOU': mIOU,
-            'optimizer' : self._genoptimizer.state_dict()
+            'gen_opt' : self._genoptimizer.state_dict()
         }
+        if self._disc is not None:
+            save_dict['disc_dict'] = self._disc.state_dict()
+            save_dict['disc_opt'] = self._discoptimizer.state_dict()
+            save_dict['gan_reg'] = self.gan_reg
+
         torch.save(save_dict, self.save_path)
         print ("=> Saved checkpoint '{}'".format(self.save_path))
         if is_best:
@@ -143,7 +148,12 @@ class Trainer():
             self.start_epoch = checkpoint['epoch']
             self.best_mIOU = checkpoint['best_mIOU']
             self._gen.load_state_dict(checkpoint['gen_dict'])
-            self._genoptimizer.load_state_dict(checkpoint['optimizer'])
+            self._genoptimizer.load_state_dict(checkpoint['gen_opt'])
+            if self._disc is not None:
+                self._disc.load_state_dict(checkpoint['disc_dict'])
+                self._discoptimizer.load_state_dict(checkpoint['disc_opt'])
+                self.gan_reg = checkpoint['gan_reg']
+
             print("=> loaded checkpoint '{}' (epoch {})".format(self.save_path, checkpoint['epoch']))
         else:
             print("=> no checkpoint found at '{}'".format(self.save_path))
