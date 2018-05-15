@@ -63,6 +63,14 @@ class _DecoderBlock(nn.Module):
         return self.decode(x)
 
 
+class VerySmallNet(nn.Module):
+    def __init__(self, num_classes, pretrained=True):
+        super().__init__()
+        self.net = nn.Conv2d(3, num_classes, kernel_size=3, padding=1)
+
+    def forward(self, x):
+        return self.net(x)
+        
 class SegNetSmall(nn.Module):
     """
     Smaller implementation of SegNet based off of vgg-11
@@ -75,10 +83,10 @@ class SegNetSmall(nn.Module):
         """
         super().__init__()
         vgg = models.vgg11(pretrained)
-        
+
         features = list(vgg.features.children())
         self.enc1 = nn.Sequential(*features[:3])  # C_out = 64
-        self.enc2 = nn.Sequential(*features[3:6])  # C_out = 128 
+        self.enc2 = nn.Sequential(*features[3:6])  # C_out = 128
         self.enc3 = nn.Sequential(*features[6:11])  # C_out = 256
         self.enc4 = nn.Sequential(*features[11:16])  # C_out = 512
         self.enc5 = nn.Sequential(*features[16:])  # C_out = 512
