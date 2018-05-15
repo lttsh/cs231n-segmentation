@@ -5,17 +5,21 @@ from torch.utils.data import DataLoader
 from dataset import CocoStuffDataSet
 from model import SegNetSmall, VerySmallNet
 import numpy as np
-
+import os
+import shutil
 from utils import *
 
 class Trainer():
-    def __init__(self, net, train_loader, val_loader):
+    def __init__(self, net, train_loader, val_loader, save_path=None, best_path=None, resume=False):
         """
         Training class for a specified model
         Args:
             net: (model) model to train
             train_loader: (DataLoader) train data
             val_load: (DataLoader) validation data
+            save_path: path to last saved checkpoint
+            best_path: path to best saved checkpoint
+            resume: load from last saved checkpoint ?
         """
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print ("Using device %s" % self.device)
@@ -24,6 +28,12 @@ class Trainer():
         self._val_loader = val_loader
         self._criterion = nn.CrossEntropyLoss()
         self._optimizer = optim.Adam(self._net.parameters())
+        self.start_epoch = 0
+        self.best_mIOU = 0
+        self.save_path = save_path
+        self.best_path = best_path
+        if resume:
+            self.load_model()
 
     def _train_batch(self, mini_batch_data, mini_batch_labels):
         """
@@ -43,7 +53,6 @@ class Trainer():
         loss = self._criterion(out, mini_batch_labels)
         loss.backward()
         self._optimizer.step()
-
         return loss
 
     def train(self, num_epochs, print_every=100, eval_every=500, eval_debug=False):
@@ -55,16 +64,47 @@ class Trainer():
                 printing loss. default=100
         """
         iter = 0
-        for epoch in range(num_epochs):
+        for epoch in range(self.start_epoch, num_epochs):
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, _ , mini_batch_labels in self._train_loader:
+                self._net.train()
                 loss = self._train_batch(mini_batch_data, mini_batch_labels)
                 if iter % print_every == 0:
                     print("Loss at iteration {}: {}".format(iter, loss))
-                if iter % eval_every == 0:
-                    mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
-                    print ("Mean IOU at iteration {} : {}".format(iter, mIOU))
                 iter += 1
+
+            if epoch % eval_every == 0:
+                self._net.eval()
+                mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
+                if self.best_mIOU < mIOU:
+                    self.best_mIOU = mIOU
+                self.save_model(epoch, self.best_mIOU, self.best_mIOU == mIOU)
+                print ("Mean IOU at iteration {} : {}".format(iter, mIOU))
+
+    def save_model(self, epoch, mIOU, is_best):
+        save_dict = {
+            'epoch': epoch + 1,
+            'state_dict': self._net.state_dict(),
+            'best_mIOU': mIOU,
+            'optimizer' : self._optimizer.state_dict()
+        }
+        torch.save(save_dict, self.save_path)
+        print ("=> Saved checkpoint '{}'".format(self.save_path))
+        if is_best:
+            shutil.copyfile(self.save_path, self.best_path)
+            print ("=> Saved best checkpoint '{}'".format(self.best_path))
+
+    def load_model(self):
+        if os.path.isfile(self.save_path):
+            print("=> loading checkpoint '{}'".format(self.save_path))
+            checkpoint = torch.load(self.save_path)
+            self.start_epoch = checkpoint['epoch']
+            self.best_mIOU = checkpoint['best_mIOU']
+            self._net.load_state_dict(checkpoint['state_dict'])
+            self._optimizer.load_state_dict(checkpoint['optimizer'])
+            print("=> loaded checkpoint '{}' (epoch {})".format(self.save_path, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(self.save_path))
 
     '''
     Evaluation methods
@@ -115,6 +155,6 @@ if __name__ == "__main__":
     train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train'), batch_size, shuffle=True)
     val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val'), batch_size, shuffle=False)
 
-    trainer = Trainer(net, train_loader, val_loader)
+    trainer = Trainer(net, train_loader, val_loader, save_path="checkpoint.pth.tar", best_path="best.pth.tar", resume=True)
 
     trainer.train(num_epochs=5, print_every=10)
