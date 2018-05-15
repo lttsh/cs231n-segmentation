@@ -24,6 +24,11 @@ if __name__ == "__main__":
     parser.add_argument('--experiment_name', '-n', type=str, default=None,
                         help='name of experiment used for saving loading checkpoints')
 
+    parser.add_argument('--gan_reg', default=0.1, type=float,
+                        help='Regularization strength from gan')
+    parser.add_argument('-d', '--d_iters', default=5, type=int,
+                        help='Number of training iterations for discriminator within one loop')
+
     args = parser.parse_args()
     batch_size = args.batch_size
 
@@ -42,11 +47,13 @@ if __name__ == "__main__":
     best_path = EXPERIMENT_DIR + '/best.pth.tar'
 
     # net = SegNetSmall(num_classes, pretrained=True)
-    net = VerySmallNet(NUM_CLASSES)
+    generator = VerySmallNet(NUM_CLASSES)
+    discriminator = None
     # net = SegNetSmaller(NUM_CLASSES, pretrained=True)
     train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train'), args.batch_size, shuffle=True)
     val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val'), args.batch_size, shuffle=False)
 
-    trainer = Trainer(net, train_loader, val_loader, save_path=save_path, best_path=best_path, resume=args.load_model)
+    trainer = Trainer(generator, discriminator, train_loader, val_loader, \
+            gan_reg=args.gan_reg, d_iters=args.d_iters, save_path=save_path, best_path=best_path, resume=args.load_model)
 
     trainer.train(num_epochs=args.epochs, print_every=args.print_every)
