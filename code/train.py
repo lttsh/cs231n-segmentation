@@ -151,7 +151,8 @@ if __name__ == "__main__":
     num_classes = 11
     batch_size = 8
     # net = SegNetSmall(num_classes, pretrained=True)
-    net = VerySmallNet(num_classes)
+    # net = VerySmallNet(num_classes)
+    net = SegNetSmaller(num_classes, pretrained=True)
     train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train'), batch_size, shuffle=True)
     val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val'), batch_size, shuffle=False)
 
