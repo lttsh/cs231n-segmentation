@@ -8,6 +8,8 @@ import numpy as np
 import os
 import shutil
 from utils import *
+from tqdm import tqdm
+
 
 class Trainer():
     def __init__(self, net, train_loader, val_loader, save_path=None, best_path=None, resume=False):
@@ -64,22 +66,26 @@ class Trainer():
                 printing loss. default=100
         """
         iter = 0
+        batch_size = self._train_loader.batch_size
+        num_samples = len(self._train_loader.dataset)
+        epoch_len = int(num_samples / batch_size)
+
         for epoch in range(self.start_epoch, num_epochs):
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, _ , mini_batch_labels in self._train_loader:
                 self._net.train()
                 loss = self._train_batch(mini_batch_data, mini_batch_labels)
                 if iter % print_every == 0:
-                    print("Loss at iteration {}: {}".format(iter, loss))
+                    print("Loss at iteration {}/{}: {}".format(iter, epoch_len, loss))
                 iter += 1
 
-            if epoch % eval_every == 0:
+            if iter % eval_every == 0:
                 self._net.eval()
                 mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
                 if self.best_mIOU < mIOU:
                     self.best_mIOU = mIOU
                 self.save_model(epoch, self.best_mIOU, self.best_mIOU == mIOU)
-                print ("Mean IOU at iteration {} : {}".format(iter, mIOU))
+                print ("Mean IOU at iteration {}/{}: {}".format(iter, epoch_len, mIOU))
 
     def save_model(self, epoch, mIOU, is_best):
         save_dict = {
@@ -150,9 +156,9 @@ class Trainer():
 if __name__ == "__main__":
     num_classes = 11
     batch_size = 2
-    # net = SegNetSmall(num_classes, pretrained=True)
-    # net = VerySmallNet(num_classes)
-    net = SegNetSmaller(num_classes, pretrained=True)
+    net = SegNetSmall(num_classes, pretrained=True)
+    # net = SegNetSmaller(num_classes, pretrained=True)
+    net = VerySmallNet(num_classes)
     train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train'), batch_size, shuffle=True)
     val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val'), batch_size, shuffle=False)
 

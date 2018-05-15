@@ -14,3 +14,6 @@ def convert_to_mask(prediction):
     out = torch.reshape(out, (C, B, H, W))
     out = torch.transpose(out, 0, 1)
     return out # B x C x H x W where C is the number of classes
+
+def flatten(x):
+    return x.view(x.size(0), -1)
