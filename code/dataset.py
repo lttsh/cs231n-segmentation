@@ -61,6 +61,7 @@ class CocoStuffDataSet(dset.CocoDetection):
             tuple: Tuple (image, mask).
                 'image' ND array of size (3, H, W)
                 'mask' ND array of size (C + 1, H, W) where C is the number of categories ( + 1 for background category)
+                'mask_flat' ND array of size (H, W) where each pixel has value between 0 and C depending on their class
         """
         coco = self.coco
         img_id = self.ids[index]
@@ -80,11 +81,9 @@ class CocoStuffDataSet(dset.CocoDetection):
 
         # Create background mask
         masks[-1] = 1 - np.sum(masks[:-1, : , :], 0)
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-
-        masks = np.argmax(masks, axis=0)
-        return img, masks
+        # if self.target_transform is not None:
+        #     target = self.target_transform(target)
+        return img, masks, np.argmax(masks, axis=0)
 
     def gather_stats(self):
         images = self.coco.dataset['images']
