@@ -6,10 +6,16 @@ import torchvision.models as models
 
 #TODO: credit https://github.com/zijundeng/pytorch-semantic-segmentation/blob/master/models/seg_net.py
 def initialize_weights(*models):
+    """
+    Initializes a sequence of models
+    Args:
+        models: (Iterable) models to initialize. 
+            each model can must be one of {nn.Conv2d, nn.Linear, nn.BatchNorm2d}
+    """
     for model in models:
         for module in model.modules():
             if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
-                nn.init.kaiming_normal(module.weight)
+                nn.init.kaiming_normal_(module.weight)
                 if module.bias is not None:
                     module.bias.data.zero_()
             elif isinstance(module, nn.BatchNorm2d):
@@ -18,7 +24,16 @@ def initialize_weights(*models):
 
 
 class _DecoderBlock(nn.Module):
+    """
+    CNN block for the decoder.
+    """
     def __init__(self, in_channels, out_channels, num_conv_layers):
+        """
+        Args:
+            in_channels: (int) number of input channels to this block
+            out_channels: (int) number of out_channels from this block
+            num_conv_layers: (int) number of total Conv2d filters. Must be >= 2
+        """
         assert num_conv_layers >= 2
         super().__init__()
         middle_channels = in_channels // 2
@@ -38,11 +53,26 @@ class _DecoderBlock(nn.Module):
         self.decode = nn.Sequential(*layers)
 
     def forward(self, x):
+        """
+        Forward pass for the decoder block
+        Args:
+            x: (torch.Tensor) input tensor to be decoded by block
+        Return:
+            (torch.Tensor) result of decoding input tensor
+        """
         return self.decode(x)
 
 
 class SegNetSmall(nn.Module):
+    """
+    Smaller implementation of SegNet based off of vgg-11
+    """
     def __init__(self, num_classes, pretrained=True):
+        """
+        Args:
+            num_classes: (int) number of output classes to be predicted
+            pretrained: (bool) if True loads vgg-11 pretrained weights. default=True
+        """
         super().__init__()
         vgg = models.vgg11(pretrained)
         
