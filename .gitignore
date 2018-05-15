@@ -101,7 +101,8 @@ ENV/
 .mypy_cache/
 
 
-# dataset 
+# dataset
 coco/
 cocostuff/
 cocostuff-master/
+checkpoints/
