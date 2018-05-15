@@ -1,9 +1,7 @@
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from torch.utils.data import DataLoader
-from dataset import CocoStuffDataSet
-from model import SegNetSmall, VerySmallNet
+
 import numpy as np
 import os
 import shutil
@@ -74,7 +72,6 @@ class Trainer():
                 iter += 1
 
             if epoch % eval_every == 0:
-                self._net.eval()
                 mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
                 if self.best_mIOU < mIOU:
                     self.best_mIOU = mIOU
@@ -125,6 +122,8 @@ class Trainer():
         return 1.0 / loader.dataset.numClasses * pix_acc
 
     def evaluate_meanIOU(self, loader, debug=False):
+        print ("Evaluating mean IOU")
+        self._net.eval()
         numClasses = loader.dataset.numClasses
         total = 0
         mIOU = 0.0
@@ -146,16 +145,3 @@ class Trainer():
             if debug:
                 print ("Processed %d batches out of %d, accumulated mIOU : %f" % (iter, len(loader), mIOU))
         return 1.0 / total * mIOU
-
-if __name__ == "__main__":
-    num_classes = 11
-    batch_size = 8
-    # net = SegNetSmall(num_classes, pretrained=True)
-    # net = VerySmallNet(num_classes)
-    net = SegNetSmaller(num_classes, pretrained=True)
-    train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train'), batch_size, shuffle=True)
-    val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val'), batch_size, shuffle=False)
-
-    trainer = Trainer(net, train_loader, val_loader, save_path="checkpoint.pth.tar", best_path="best.pth.tar", resume=True)
-
-    trainer.train(num_epochs=5, print_every=10)
