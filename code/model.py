@@ -143,19 +143,18 @@ class SegNetSmaller(nn.Module):
                 param.requires_grad = False
 
         self.dec3 = nn.Sequential(
-            *([nn.ConvTranspose2d(256, 256, kernel_size=2, stride=2)] +
-              [nn.Conv2d(256, 128, kernel_size=3, padding=1),
+            *([nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)] +
+              [nn.Conv2d(128, 128, kernel_size=3, padding=1),
                nn.ReLU()] * 2)
         )
         self.dec2 = _DecoderBlock(256, 64, 2)
         self.dec1 = _DecoderBlock(128, num_classes, 2)
-        initialize_weights(self.dec5, self.dec4, self.dec3, self.dec2, self.dec1)
+        initialize_weights(self.dec3, self.dec2, self.dec1)
 
     def forward(self, x):
         enc1 = self.enc1(x)
         enc2 = self.enc2(enc1)
         enc3 = self.enc3(enc2)
-
         dec3 = self.dec3(enc3)
         dec2 = self.dec2(torch.cat([enc2, dec3], 1))
         dec1 = self.dec1(torch.cat([enc1, dec2], 1))

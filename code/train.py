@@ -3,7 +3,7 @@ import torch.optim as optim
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from dataset import CocoStuffDataSet
-from model import SegNetSmall, VerySmallNet
+from model import * 
 import numpy as np
 
 from utils import *
@@ -109,7 +109,7 @@ class Trainer():
 
 if __name__ == "__main__":
     num_classes = 11
-    batch_size = 8
+    batch_size = 2
     # net = SegNetSmall(num_classes, pretrained=True)
     # net = VerySmallNet(num_classes)
     net = SegNetSmaller(num_classes, pretrained=True)
