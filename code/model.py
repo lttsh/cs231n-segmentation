@@ -90,6 +90,8 @@ class SegNetSmall(nn.Module):
         self.enc3 = nn.Sequential(*features[6:11])  # C_out = 256
         self.enc4 = nn.Sequential(*features[11:16])  # C_out = 512
         self.enc5 = nn.Sequential(*features[16:])  # C_out = 512
+        for param in self.parameters():
+            param.requires_grad = False
 
         self.dec5 = nn.Sequential(
             *([nn.ConvTranspose2d(512, 512, kernel_size=2, stride=2)] +
@@ -112,6 +114,49 @@ class SegNetSmall(nn.Module):
         dec5 = self.dec5(enc5)
         dec4 = self.dec4(torch.cat([enc4, dec5], 1))
         dec3 = self.dec3(torch.cat([enc3, dec4], 1))
+        dec2 = self.dec2(torch.cat([enc2, dec3], 1))
+        dec1 = self.dec1(torch.cat([enc1, dec2], 1))
+        return dec1
+
+
+class SegNetSmaller(nn.Module):
+    """
+    Smaller implementation of SegNet based off of vgg-11
+    """
+    def __init__(self, num_classes, pretrained=True, freeze_pretrained=False):
+        """
+        Args:
+            num_classes: (int) number of output classes to be predicted
+            pretrained: (bool) if True loads vgg-11 pretrained weights. default=True
+        """
+        super().__init__()
+        vgg = models.vgg11(pretrained)
+
+        features = list(vgg.features.children())
+
+        self.enc1 = nn.Sequential(*features[:3])  # C_out = 64
+        self.enc2 = nn.Sequential(*features[3:6])  # C_out = 128
+        self.enc3 = nn.Sequential(*features[6:11])  # C_out = 256
+        
+        if freeze_pretrained: 
+            for param in self.parameters():
+                param.requires_grad = False
+
+        self.dec3 = nn.Sequential(
+            *([nn.ConvTranspose2d(256, 256, kernel_size=2, stride=2)] +
+              [nn.Conv2d(256, 128, kernel_size=3, padding=1),
+               nn.ReLU()] * 2)
+        )
+        self.dec2 = _DecoderBlock(256, 64, 2)
+        self.dec1 = _DecoderBlock(128, num_classes, 2)
+        initialize_weights(self.dec5, self.dec4, self.dec3, self.dec2, self.dec1)
+
+    def forward(self, x):
+        enc1 = self.enc1(x)
+        enc2 = self.enc2(enc1)
+        enc3 = self.enc3(enc2)
+
+        dec3 = self.dec3(enc3)
         dec2 = self.dec2(torch.cat([enc2, dec3], 1))
         dec1 = self.dec1(torch.cat([enc1, dec2], 1))
         return dec1
