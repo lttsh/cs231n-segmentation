@@ -15,5 +15,9 @@ def convert_to_mask(prediction):
     out = torch.transpose(out, 0, 1)
     return out # B x C x H x W where C is the number of classes
 
+
+"""
+Flattens input x while maintaining the batch dimension
+"""
 def flatten(x):
     return x.view(x.size(0), -1)

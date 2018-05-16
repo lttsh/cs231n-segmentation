@@ -6,7 +6,7 @@ import numpy as np
 import os
 import shutil
 from utils import *
-from tqdm import tqdm
+from tensorboardX import SummaryWriter
 
 
 class Trainer():
@@ -103,6 +103,8 @@ class Trainer():
             print_every: (int) number of minibatches to process before
                 printing loss. default=100
         """
+        writer = SummaryWriter()
+
         iter = 0
         batch_size = self._train_loader.batch_size
         num_samples = len(self._train_loader.dataset)
@@ -116,9 +118,11 @@ class Trainer():
                     self._disc.train()
                 d_loss, g_loss, segmentation_loss = self._train_batch(mini_batch_data, mini_batch_labels, mini_batch_labels_flat)
                 if iter % print_every == 0:
+                    writer.add_scalar('Train/SegmentationLoss', segmentation_loss, iter)
                     if self._disc is None:
                         print ('Loss at iteration {}/{}: {}'.format(iter, epoch_len, segmentation_loss))
                     else:
+                        writer.add_scalar('Train/GeneratorLoss', g_loss, iter)
                         print("D_loss {}, G_loss {}, Seg loss at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len))
 
                 if iter % eval_every == 0:
@@ -126,6 +130,7 @@ class Trainer():
                     if self.best_mIOU < mIOU:
                         self.best_mIOU = mIOU
                     self.save_model(epoch, self.best_mIOU, self.best_mIOU == mIOU)
+                    writer.add_scalar('Train/MeanIOU', mIOU, iter)
                     print("Mean IOU at iteration {}/{}: {}".format(iter, epoch_len, mIOU))
 
                 iter += 1
