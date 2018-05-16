@@ -204,8 +204,7 @@ class GAN(nn.Module):
         )
         features_len = self._get_conv_output(images_shape, masks_shape)
         self.prediction = nn.Linear(features_len, 1)
-        self.probability = nn.Sigmoid()
-
+        initialize_weights(self.image_branch, self.masks_branch, self.enc1, self.enc2, self.prediction)
     def forward(self, images, masks):
         """
         Args:
@@ -218,7 +217,7 @@ class GAN(nn.Module):
         """
         features = self._forward_features(images, masks)
         prediction = self.prediction(features)
-        return self.probability(prediction)
+        return prediction
 
     # generate input sample and forward to get shape
     def _get_conv_output(self, images_shape, masks_shape):

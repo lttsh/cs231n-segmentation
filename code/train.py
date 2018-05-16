@@ -11,7 +11,8 @@ from tensorboardX import SummaryWriter
 
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
-            gan_reg=0.1, d_iters=5, experiment_dir='./', resume=False):
+            gan_reg=1.0, d_iters=5, weight_clip=1e-2, disc_lr=1e-5, gen_lr=1e-2,\
+            experiment_dir='./', resume=False):
         """
         Training class for a specified model
         Args:
@@ -28,8 +29,7 @@ class Trainer():
 
         if discriminator is not None:
             self._disc = discriminator.to(self.device)
-            self._discoptimizer = optim.Adam(self._disc.parameters()) # Discriminator optimizer (needs to be separate)
-            self._BCEcriterion = nn.BCELoss() # Criterion for GAN loss
+            self._discoptimizer = optim.Adam(self._disc.parameters(), lr=disc_lr) # Discriminator optimizer (needs to be separate)
         else:
             print ("Runing network without GAN loss.")
             self._disc = None
@@ -40,13 +40,13 @@ class Trainer():
         self._val_loader = val_loader
 
         self._MCEcriterion = nn.CrossEntropyLoss() # Criterion for segmentation loss
-        self._genoptimizer = optim.Adam(self._gen.parameters()) # Generator optimizer
+        self._genoptimizer = optim.Adam(self._gen.parameters(), lr=gen_lr) # Generator optimizer
 
         self.gan_reg = gan_reg
         self.d_iters = d_iters
         self.start_iter = 0
         self.best_mIOU = 0
-
+        self.weight_clip = weight_clip
         self.experiment_dir = experiment_dir
         self.save_path = os.path.join(experiment_dir, 'ckpt.pth.tar')
         self.best_path = os.path.join(experiment_dir, 'best.pth.tar')
@@ -73,24 +73,25 @@ class Trainer():
         mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32) # Ground truth mask (B, C, H, W)
         mini_batch_labels_flat = mini_batch_labels_flat.to(self.device) # Groun truth mask flattened (B, H, W)
         gen_out = self._gen(mini_batch_data) # Segmentation output from generator (B, C, H , W)
-        batch_size = mini_batch_data.size(0)
-        gan_labels = torch.ones(1).to(self.device)
 
         g_loss = 0
         d_loss = 0
 
         # Minimize GAN Loss
         if self._disc is not None:
+            converted_mask = convert_to_mask(gen_out).to(self.device)
             for i in range(self.d_iters):
                 self._discoptimizer.zero_grad()
-                scores_false = self._disc(mini_batch_data, convert_to_mask(gen_out)) # (B,)
+                scores_false = self._disc(mini_batch_data, converted_mask) # (B,)
                 scores_true = self._disc(mini_batch_data, mini_batch_labels) # (B,)
-                d_loss = self._BCEcriterion(scores_true, gan_labels) - self._BCEcriterion(scores_false, gan_labels)
-                d_loss.backward(retain_graph=(i < self.d_iters-1))
+                d_loss = torch.mean(scores_false) - torch.mean(scores_true)
+                d_loss.backward()#retain_graph=(i < self.d_iters-1))
                 self._discoptimizer.step()
-            # self._discoptimizer.zero_grad()
-            scores_false = self._disc(mini_batch_data, convert_to_mask(gen_out))
-            g_loss = self._BCEcriterion(scores_false, gan_labels)
+                # W-GAN weight clipping
+                for p in self._disc.parameters():
+                    p.data.clamp_(-self.weight_clip, self.weight_clip)
+            scores_false = self._disc(mini_batch_data, converted_mask)
+            g_loss = -torch.mean(scores_false)
 
         # Minimize segmentation loss
         segmentation_loss = self._MCEcriterion(gen_out, mini_batch_labels_flat)
@@ -121,24 +122,24 @@ class Trainer():
                 if self._disc is not None:
                     self._disc.train()
                 d_loss, g_loss, segmentation_loss = self._train_batch(mini_batch_data, mini_batch_labels, mini_batch_labels_flat)
-                if total_iters % print_every == 0:
-                    writer.add_scalar('Train/SegmentationLoss', segmentation_loss, total_iters)
+                if iter % print_every == 0:
+                    writer.add_scalar('Train/SegmentationLoss', segmentation_loss, iter)
                     if self._disc is None:
-                        print ('Loss at iteration {}/{}: {}'.format(epoch_iters, epoch_len, segmentation_loss))
+                        print ('Loss at iteration {}/{}: {}'.format(iter, epoch_len - 1, segmentation_loss))
                     else:
                         writer.add_scalar('Train/GeneratorLoss', g_loss, iter)
                         writer.add_scalar('Train/DiscriminatorLoss', d_loss, iter)
-                        print("D_loss {}, G_loss {}, Seg loss at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len))
+                        print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))
 
                 if iter % eval_every == 0:
-                    val_acc = self.evaluate_pixel_accuracy(self._val_loader)
-                    print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
+                    # val_acc = self.evaluate_pixel_accuracy(self._val_loader)
+                    # print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
                     val_mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
                     if self.best_mIOU < val_mIOU:
                         self.best_mIOU = val_mIOU
                     self.save_model(iter, self.best_mIOU, self.best_mIOU == val_mIOU)
                     writer.add_scalar('Val/MeanIOU', val_mIOU, iter)
-                    print("Mean IOU at iteration {}/{}: {}".format(iter, epoch_len, val_mIOU))
+                    print("Mean IOU at iteration {}/{}: {}".format(iter, epoch_len - 1, val_mIOU))
                 iter += 1
 
 
