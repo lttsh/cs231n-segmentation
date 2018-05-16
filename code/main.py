@@ -41,9 +41,6 @@ if __name__ == "__main__":
     if not os.path.exists(EXPERIMENT_DIR):
         os.makedirs(EXPERIMENT_DIR)
 
-    save_path = os.path.join(EXPERIMENT_DIR, 'ckpt.pth.tar')
-    best_path = os.path.join(EXPERIMENT_DIR, 'best.pth.tar')
-
     HEIGHT, WIDTH = 128, 128
     image_shape = (3, HEIGHT, WIDTH)
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
@@ -57,7 +54,7 @@ if __name__ == "__main__":
                               args.batch_size, shuffle=False)
 
     trainer = Trainer(generator, discriminator, train_loader, val_loader,
-                     gan_reg=args.gan_reg, d_iters=args.d_iters, save_path=save_path,
-                     best_path=best_path, resume=args.load_model)
+                     gan_reg=args.gan_reg, d_iters=args.d_iters, 
+                     experiment_dir=EXPERIMENT_DIR, resume=args.load_model)
 
     trainer.train(num_epochs=args.epochs, print_every=args.print_every)

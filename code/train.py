@@ -11,7 +11,7 @@ from tensorboardX import SummaryWriter
 
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
-            gan_reg=0.1, d_iters=5,  save_path=None, best_path=None, resume=False):
+            gan_reg=0.1, d_iters=5, experiment_dir='./', save_path=None, best_path=None, resume=False):
         """
         Training class for a specified model
         Args:
@@ -47,8 +47,11 @@ class Trainer():
         self.d_iters = d_iters
         self.start_epoch = 0
         self.best_mIOU = 0
-        self.save_path = save_path
-        self.best_path = best_path
+
+        sekf.experiment_dir = experiment_dir
+        self.save_path = os.path.join(experiment_dir, 'ckpt.pth.tar')
+        self.best_path = os.path.join(experiment_dir, 'best.pth.tar')
+
         if resume:
             self.load_model()
 
@@ -103,36 +106,38 @@ class Trainer():
             print_every: (int) number of minibatches to process before
                 printing loss. default=100
         """
-        writer = SummaryWriter()
+        writer = SummaryWriter(log_dir=self.experiment_dir)
 
-        iter = 0
+        total_iters = 0
         batch_size = self._train_loader.batch_size
         num_samples = len(self._train_loader.dataset)
         epoch_len = int(num_samples / batch_size)
 
         for epoch in range(self.start_epoch, num_epochs):
+            epoch_iters = 0
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, mini_batch_labels, mini_batch_labels_flat in self._train_loader:
                 self._gen.train()
                 if self._disc is not None:
                     self._disc.train()
                 d_loss, g_loss, segmentation_loss = self._train_batch(mini_batch_data, mini_batch_labels, mini_batch_labels_flat)
-                if iter % print_every == 0:
-                    writer.add_scalar('Train/SegmentationLoss', segmentation_loss, iter)
+                if total_iters % print_every == 0:
+                    writer.add_scalar('Train/SegmentationLoss', segmentation_loss, total_iters)
                     if self._disc is None:
-                        print ('Loss at iteration {}/{}: {}'.format(iter, epoch_len, segmentation_loss))
+                        print ('Loss at iteration {}/{}: {}'.format(epoch_iters, epoch_len, segmentation_loss))
                     else:
-                        writer.add_scalar('Train/GeneratorLoss', g_loss, iter)
-                        print("D_loss {}, G_loss {}, Seg loss at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len))
+                        writer.add_scalar('Train/GeneratorLoss', g_loss, total_iters)
+                        print("D_loss {}, G_loss {}, Seg loss at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, epoch_iters, epoch_len))
 
-                if iter % eval_every == 0:
+                if total_iters % eval_every == 0:
                     mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
                     if self.best_mIOU < mIOU:
                         self.best_mIOU = mIOU
                     self.save_model(epoch, self.best_mIOU, self.best_mIOU == mIOU)
-                    writer.add_scalar('Train/MeanIOU', mIOU, iter)
-                    print("Mean IOU at iteration {}/{}: {}".format(iter, epoch_len, mIOU))
-                iter += 1
+                    writer.add_scalar('Train/MeanIOU', mIOU, total_iters)
+                    print("Mean IOU at iteration {}/{}: {}".format(epoch_iters, epoch_len, mIOU))
+                epoch_iters += 1
+                total_iters += 1
 
 
     def save_model(self, epoch, mIOU, is_best):
