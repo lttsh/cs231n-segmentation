@@ -9,7 +9,7 @@ def initialize_weights(*models):
     """
     Initializes a sequence of models
     Args:
-        models: (Iterable) models to initialize. 
+        models: (Iterable) models to initialize.
             each model can must be one of {nn.Conv2d, nn.Linear, nn.BatchNorm2d}
     """
     for model in models:
@@ -70,7 +70,7 @@ class VerySmallNet(nn.Module):
 
     def forward(self, x):
         return self.net(x)
-        
+
 class SegNetSmall(nn.Module):
     """
     Smaller implementation of SegNet based off of vgg-11
@@ -137,7 +137,7 @@ class SegNetSmaller(nn.Module):
         self.enc1 = nn.Sequential(*features[:3])  # C_out = 64
         self.enc2 = nn.Sequential(*features[3:6])  # C_out = 128
         self.enc3 = nn.Sequential(*features[6:11])  # C_out = 256
-        
+
         if freeze_pretrained:
             for param in self.parameters():
                 param.requires_grad = False
@@ -177,9 +177,9 @@ class _EncoderBlock(nn.Module):
 
     def forward(self, x):
         return self.net(x)
-                    
+
 class GAN(nn.Module):
-    def __init__(self, num_classes, images_shape, masks_shape):
+    def __init__(self, num_classes, masks_shape, images_shape):
         """
         Args:
             num_classes: (int) number of output classes to be predicted

@@ -70,7 +70,6 @@ class Trainer():
         """
         self._genoptimizer.zero_grad()
         mini_batch_data = mini_batch_data.to(self.device) # Input image (B, 3, H, W)
-
         mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32) # Ground truth mask (B, C, H, W)
         mini_batch_labels_flat = mini_batch_labels_flat.to(self.device) # Groun truth mask flattened (B, H, W)
         gen_out = self._gen(mini_batch_data) # Segmentation output from generator (B, C, H , W)
