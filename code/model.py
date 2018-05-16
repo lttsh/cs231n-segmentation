@@ -205,7 +205,7 @@ class GAN(nn.Module):
         self.prediction = nn.Linear(features_len, 1)
         self.probability = nn.Sigmoid()
 
-    def forward(self, segmentations, images):
+    def forward(self, segmentations, images, segmentation_first=True):
         """
         Args:
             segmentations: (N, C_classes, H, W) outputs of segmentation model
@@ -214,7 +214,7 @@ class GAN(nn.Module):
             (N,) tensor: vector of probabilities that images is the ground truth
                         label map of segmentations
         """
-        features = self._forward_features(segmentations, images)
+        features = self._forward_features(segmentations, images, segmentation_first)
         prediction = self.prediction(features)
         return self.probability(prediction)
 
@@ -226,10 +226,13 @@ class GAN(nn.Module):
         output_feat = self._forward_features(segmentations, images)
         return output_feat.size(1)
 
-    def _forward_features(self, segmentations, images):
+    def _forward_features(self, segmentations, images, segmentation_first=True):
         seg = self.segmentation_branch(segmentations)
         im = self.image_branch(images)
-        mixed = torch.cat([seg, im], 1)
+        if segmentation_first:
+            mixed = torch.cat([seg, im], 1)
+        else:
+            mixed = torch.cat([im, seg], 1)
         enc1 = self.enc1(mixed)
         enc2 = self.enc2(enc1)
         return flatten(enc2)

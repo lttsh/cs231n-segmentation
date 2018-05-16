@@ -11,7 +11,7 @@ from tensorboardX import SummaryWriter
 
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
-            gan_reg=0.1, d_iters=5, experiment_dir='', resume=False):
+            gan_reg=0.1, d_iters=5, experiment_dir='./', resume=False):
         """
         Training class for a specified model
         Args:
@@ -117,10 +117,10 @@ class Trainer():
                 if self._disc is not None:
                     self._disc.train()
                 d_loss, g_loss, segmentation_loss = self._train_batch(mini_batch_data, mini_batch_labels, mini_batch_labels_flat)
-                if iter % print_every == 0:
-                    writer.add_scalar('Train/SegmentationLoss', segmentation_loss, iter)
+                if total_iters % print_every == 0:
+                    writer.add_scalar('Train/SegmentationLoss', segmentation_loss, total_iters)
                     if self._disc is None:
-                        print ('Loss at iteration {}/{}: {}'.format(iter, epoch_len, segmentation_loss))
+                        print ('Loss at iteration {}/{}: {}'.format(epoch_iters, epoch_len, segmentation_loss))
                     else:
                         writer.add_scalar('Train/GeneratorLoss', g_loss, iter)
                         writer.add_scalar('Train/DiscriminatorLoss', d_loss, iter)
@@ -135,9 +135,6 @@ class Trainer():
                     self.save_model(iter, self.best_mIOU, self.best_mIOU == val_mIOU)
                     writer.add_scalar('Val/MeanIOU', val_mIOU, iter)
                     print("Mean IOU at iteration {}/{}: {}".format(iter, epoch_len, val_mIOU))
-                    train_mIOU = self.evaluate_meanIOU(self._train_loader, eval_debug)
-                    print ("Train Mean IOU at iteration {}/{}: {}".format(iter, epoch_len, train_mIOU))
-                    writer.add_scalar('Train/MeanIOU', train_mIOU, iter)
                 iter += 1
 
 
