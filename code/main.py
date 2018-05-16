@@ -1,11 +1,10 @@
 import torch
 from torch.utils.data import DataLoader
-
 from train import Trainer
 from model import *
 from dataset import CocoStuffDataSet
-
 import os, argparse, datetime
+
 NUM_CLASSES = 11
 SAVE_DIR = "../checkpoints" # Assuming this is launched from code/ subfolder.
 
@@ -32,26 +31,25 @@ if __name__ == "__main__":
     args = parser.parse_args()
     batch_size = args.batch_size
 
-    if not os.path.exists(SAVE_DIR):
-        os.makedirs(SAVE_DIR)
-
     ### Create experiment specific directory
-    EXPERIMENT_DIR = SAVE_DIR + '/'
     if args.experiment_name is not None:
-        EXPERIMENT_DIR += args.experiment_name
+        EXPERIMENT_DIR = os.path.join(SAVE_DIR, args.experiment_name)
     else:
         now = datetime.datetime.now()
-        EXPERIMENT_DIR += now.strftime("%m_%d_%H%M")
+        EXPERIMENT_DIR = os.path.join(SAVE_DIR, now.strftime("%m_%d_%H%M"))
 
-    save_path = EXPERIMENT_DIR + '/ckpt.pth.tar'
-    best_path = EXPERIMENT_DIR + '/best.pth.tar'
+    if not os.path.exists(EXPERIMENT_DIR):
+        os.makedirs(EXPERIMENT_DIR)
+
+    save_path = os.path.join(EXPERIMENT_DIR, 'ckpt.pth.tar')
+    best_path = os.path.join(EXPERIMENT_DIR, 'best.pth.tar')
 
     # net = SegNetSmall(num_classes, pretrained=True)
     generator = VerySmallNet(NUM_CLASSES)
     discriminator = None
     # net = SegNetSmaller(NUM_CLASSES, pretrained=True)
-    train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train'), args.batch_size, shuffle=True)
-    val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val'), args.batch_size, shuffle=False)
+    train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train', width=128, height=128), args.batch_size, shuffle=True)
+    val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val', width=128, height=128), args.batch_size, shuffle=False)
 
     trainer = Trainer(generator, discriminator, train_loader, val_loader, \
             gan_reg=args.gan_reg, d_iters=args.d_iters, save_path=save_path, best_path=best_path, resume=args.load_model)
