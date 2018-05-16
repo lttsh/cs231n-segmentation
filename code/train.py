@@ -53,7 +53,7 @@ class Trainer():
         if resume:
             self.load_model()
 
-    def _train_batch(self, mini_batch_data, mini_batch_labels, mini_batch_labels_flat):
+    def _train_batch(self, mini_batch_data, mini_batch_labels, mini_batch_labels_flat, mode='disc'):
         """
         Performs one gradient step on a minibatch of data
         Args:
@@ -63,42 +63,43 @@ class Trainer():
                 a batch of (H, W) binary masks for each of C_out classes
             mini_batch_labels_flat: (torch.Tensor) shape (N, H, W)
                 a batch of (H, W) binary masks for each of C_out classes
+            mode: discriminator or generator training
         Return:
             d_loss: (float) discriminator loss
             g_loss: (float) generator loss
             segmentation_loss: (float) segmentation loss
         """
-        self._genoptimizer.zero_grad()
         mini_batch_data = mini_batch_data.to(self.device) # Input image (B, 3, H, W)
         mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32) # Ground truth mask (B, C, H, W)
         mini_batch_labels_flat = mini_batch_labels_flat.to(self.device) # Groun truth mask flattened (B, H, W)
         gen_out = self._gen(mini_batch_data) # Segmentation output from generator (B, C, H , W)
+        converted_mask = convert_to_mask(gen_out).to(self.device)
 
-        g_loss = 0
-        d_loss = 0
-
-        # Minimize GAN Loss
-        if self._disc is not None:
-            converted_mask = convert_to_mask(gen_out).to(self.device)
-            for i in range(self.d_iters):
-                self._discoptimizer.zero_grad()
-                scores_false = self._disc(mini_batch_data, converted_mask) # (B,)
-                scores_true = self._disc(mini_batch_data, mini_batch_labels) # (B,)
-                d_loss = torch.mean(scores_false) - torch.mean(scores_true)
-                d_loss.backward()#retain_graph=(i < self.d_iters-1))
-                self._discoptimizer.step()
-                # W-GAN weight clipping
-                for p in self._disc.parameters():
-                    p.data.clamp_(-self.weight_clip, self.weight_clip)
-            scores_false = self._disc(mini_batch_data, converted_mask)
-            g_loss = -torch.mean(scores_false)
-
-        # Minimize segmentation loss
-        segmentation_loss = self._MCEcriterion(gen_out, mini_batch_labels_flat)
-        gen_loss = segmentation_loss + self.gan_reg * g_loss
-        gen_loss.backward()
-        self._genoptimizer.step()
-        return d_loss, g_loss, segmentation_loss
+        if mode == 'disc' and self._disc is not None:
+            d_loss = 0
+            self._discoptimizer.zero_grad()
+            scores_false = self._disc(mini_batch_data, converted_mask) # (B,)
+            scores_true = self._disc(mini_batch_data, mini_batch_labels) # (B,)
+            d_loss = torch.mean(scores_false) - torch.mean(scores_true)
+            d_loss.backward()#retain_graph=(i < self.d_iters-1))
+            self._discoptimizer.step()
+            # W-GAN weight clipping
+            for p in self._disc.parameters():
+                p.data.clamp_(-self.weight_clip, self.weight_clip)
+            return d_loss, None
+        if mode == 'gen':
+            g_loss = 0
+            self._genoptimizer.zero_grad()
+            # GAN part
+            if self._disc is not None:
+                scores_false = self._disc(mini_batch_data, converted_mask)
+                g_loss = -torch.mean(scores_false)
+            # Minimize segmentation loss
+            segmentation_loss = self._MCEcriterion(gen_out, mini_batch_labels_flat)
+            gen_loss = segmentation_loss + self.gan_reg * g_loss
+            gen_loss.backward()
+            self._genoptimizer.step()
+            return g_loss, segmentation_loss
 
     def train(self, num_epochs, print_every=100, eval_every=200, eval_debug=False):
         """
@@ -114,14 +115,24 @@ class Trainer():
         batch_size = self._train_loader.batch_size
         num_samples = len(self._train_loader.dataset)
         epoch_len = int(num_samples / batch_size)
-
+        disc_train_iter = 0
+        d_loss=0
+        g_loss=0
+        segmentation_loss=0
         for epoch in range(num_epochs):
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, mini_batch_labels, mini_batch_labels_flat in self._train_loader:
-                self._gen.train()
-                if self._disc is not None:
+                if self._disc is not None and disc_train_iter < self.d_iters:
                     self._disc.train()
-                d_loss, g_loss, segmentation_loss = self._train_batch(mini_batch_data, mini_batch_labels, mini_batch_labels_flat)
+                    d_loss, _ = self._train_batch(
+                            mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'disc')
+                    disc_train_iter+= 1
+                else:
+                    self._gen.train()
+                    g_loss, segmentation_loss = self._train_batch(
+                            mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'gen')
+                    disc_train_iter=0
+
                 if iter % print_every == 0:
                     writer.add_scalar('Train/SegmentationLoss', segmentation_loss, iter)
                     if self._disc is None:
@@ -129,9 +140,10 @@ class Trainer():
                     else:
                         writer.add_scalar('Train/GeneratorLoss', g_loss, iter)
                         writer.add_scalar('Train/DiscriminatorLoss', d_loss, iter)
+                        writer.add_scalar('Train/OverallLoss', self.gan_reg * d_loss + g_loss + segmentation_loss, iter)
                         print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))
-
-                if iter % eval_every == 0:
+                        print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * d_loss + g_loss + segmentation_loss))
+                if eval_every > 0 and iter % eval_every == 0:
                     # val_acc = self.evaluate_pixel_accuracy(self._val_loader)
                     # print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
                     val_mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)

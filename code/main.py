@@ -30,9 +30,9 @@ if __name__ == "__main__":
     parser.add_argument('--experiment_name', '-n', type=str, default=None,
                         help='name of experiment used for saving loading checkpoints')
     # GAN Hyperparameters
-    parser.add_argument('--disc_lr', default=1e-5, type=float,
+    parser.add_argument('--disc_lr', default=1e-2, type=float,
                         help='Learning rate for discriminator')
-    parser.add_argument('--gen_lr', default=1e-2, type=float,
+    parser.add_argument('--gen_lr', default=0.1, type=float,
                         help='Learning rate for generator')
     parser.add_argument('--weight_clip', default=0.01, type=float,
                         help='Weight clipping for W-GAN loss')
@@ -61,10 +61,10 @@ if __name__ == "__main__":
     HEIGHT, WIDTH = args.size, args.size
     image_shape = (3, HEIGHT, WIDTH)
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
-    generator = VerySmallNet(NUM_CLASSES)
+    # generator = VerySmallNet(NUM_CLASSES)
     discriminator = None
-    # generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
-    discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
+    generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
+    # discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
 
     val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val', height=HEIGHT, width=WIDTH),
                                 args.batch_size, shuffle=False)
