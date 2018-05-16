@@ -48,9 +48,9 @@ if __name__ == "__main__":
     image_shape = (3, HEIGHT, WIDTH)
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
     # generator = VerySmallNet(NUM_CLASSES)
-    # discriminator = None
-    generator = SegNetSmaller(NUM_CLASSES, pretrained=True, freeze_pretrained=True)
-    discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
+    discriminator = None
+    generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
+    #discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
     train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train', height=HEIGHT, width=WIDTH),
                               args.batch_size, shuffle=True)
     val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val', height=HEIGHT, width=WIDTH),

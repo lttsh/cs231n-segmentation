@@ -223,7 +223,7 @@ class GAN(nn.Module):
         segmentations = torch.rand(1, *segmentations_shape)
         images = torch.rand(1, *images_shape)
 
-        output_feat = self._forward_features(left, right)
+        output_feat = self._forward_features(segmentations, images)
         return output_feat.size(1)
 
     def _forward_features(self, segmentations, images):
