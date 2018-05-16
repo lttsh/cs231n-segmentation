@@ -138,7 +138,7 @@ class SegNetSmaller(nn.Module):
         self.enc2 = nn.Sequential(*features[3:6])  # C_out = 128
         self.enc3 = nn.Sequential(*features[6:11])  # C_out = 256
         
-        if freeze_pretrained: 
+        if freeze_pretrained:
             for param in self.parameters():
                 param.requires_grad = False
 
@@ -186,11 +186,11 @@ class GAN(nn.Module):
             pretrained: (bool) if True loads vgg-11 pretrained weights. default=True
         """
         super().__init__()
-        self.left_branch = nn.Sequential(
+        self.segmentation_branch = nn.Sequential(
             *(nn.Conv2d(num_classes, 64, kernel_size=5, padding=2),
                nn.ReLU())
         )
-        self.right_branch = nn.Sequential(
+        self.image_branch = nn.Sequential(
             *(nn.Conv2d(3, 16, kernel_size=5, padding=2),
                nn.ReLU(),
                nn.Conv2d(16, 64, kernel_size=5, padding=2),
@@ -227,9 +227,9 @@ class GAN(nn.Module):
         return output_feat.size(1)
 
     def _forward_features(self, segmentations, images):
-        left = self.left_branch(segmentations)
-        right = self.right_branch(images)
-        mixed = torch.cat([left, right], 1)
+        seg = self.segmentation_branch(segmentations)
+        im = self.image_branch(images)
+        mixed = torch.cat([seg, im], 1)
         enc1 = self.enc1(mixed)
         enc2 = self.enc2(enc1)
         return flatten(enc2)

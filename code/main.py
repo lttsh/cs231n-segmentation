@@ -44,18 +44,20 @@ if __name__ == "__main__":
     save_path = os.path.join(EXPERIMENT_DIR, 'ckpt.pth.tar')
     best_path = os.path.join(EXPERIMENT_DIR, 'best.pth.tar')
 
-    # net = SegNetSmall(num_classes, pretrained=True)
-    image_shape = (128, 128, 3)
-    segmentation_shape = (128, 128, NUM_CLASSES)
+    HEIGHT, WIDTH = 128, 128
+    image_shape = (3, HEIGHT, WIDTH)
+    segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
     # generator = VerySmallNet(NUM_CLASSES)
+    # discriminator = None
     generator = SegNetSmaller(NUM_CLASSES, pretrained=True, freeze_pretrained=True)
     discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
-    # discriminator = None
-    # net = SegNetSmaller(NUM_CLASSES, pretrained=True)
-    train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train', width=128, height=128), args.batch_size, shuffle=True)
-    val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val', width=128, height=128), args.batch_size, shuffle=False)
+    train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train', height=HEIGHT, width=WIDTH),
+                              args.batch_size, shuffle=True)
+    val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val', height=HEIGHT, width=WIDTH),
+                              args.batch_size, shuffle=False)
 
-    trainer = Trainer(generator, discriminator, train_loader, val_loader, \
-            gan_reg=args.gan_reg, d_iters=args.d_iters, save_path=save_path, best_path=best_path, resume=args.load_model)
+    trainer = Trainer(generator, discriminator, train_loader, val_loader,
+                     gan_reg=args.gan_reg, d_iters=args.d_iters, save_path=save_path,
+                     best_path=best_path, resume=args.load_model)
 
     trainer.train(num_epochs=args.epochs, print_every=args.print_every)
