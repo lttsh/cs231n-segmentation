@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import numpy as np
 
 '''
@@ -21,3 +22,21 @@ Flattens input x while maintaining the batch dimension
 """
 def flatten(x):
     return x.view(x.size(0), -1)
+
+#TODO: credit https://github.com/zijundeng/pytorch-semantic-segmentation/blob/master/models/seg_net.py
+def initialize_weights(*models):
+    """
+    Initializes a sequence of models
+    Args:
+        models: (Iterable) models to initialize.
+            each model can must be one of {nn.Conv2d, nn.Linear, nn.BatchNorm2d}
+    """
+    for model in models:
+        for module in model.modules():
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+                nn.init.kaiming_normal_(module.weight)
+                if module.bias is not None:
+                    module.bias.data.zero_()
+            elif isinstance(module, nn.BatchNorm2d):
+                module.weight.data.fill_(1)
+                module.bias.data.zero_()

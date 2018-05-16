@@ -1,7 +1,8 @@
 import torch
 from torch.utils.data import DataLoader
 from train import Trainer
-from model import *
+from generator import *
+from discriminator import GAN
 from dataset import CocoStuffDataSet
 import os, argparse, datetime, json
 
@@ -63,7 +64,8 @@ if __name__ == "__main__":
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
     # generator = VerySmallNet(NUM_CLASSES)
     discriminator = None
-    generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
+    # generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
+    generator = SegNet16(NUM_CLASSES, pretrained=True)
     # discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
 
     val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val', height=HEIGHT, width=WIDTH),
