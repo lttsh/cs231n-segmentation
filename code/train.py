@@ -11,7 +11,7 @@ from tensorboardX import SummaryWriter
 
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
-            gan_reg=0.1, d_iters=5,  save_path=None, best_path=None, resume=False):
+            gan_reg=0.1, d_iters=5, experiment_dir='', resume=False):
         """
         Training class for a specified model
         Args:
@@ -19,8 +19,7 @@ class Trainer():
             train_loader: (DataLoader) train data
             val_load: (DataLoader) validation data
             gan_reg: Hyperparameter for the GAN loss (\lambda in the paper)
-            save_path: path to last saved checkpoint
-            best_path: path to best saved checkpoint
+            experiment_dir: path to directory that saves everything
             resume: load from last saved checkpoint ?
         """
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -45,10 +44,11 @@ class Trainer():
 
         self.gan_reg = gan_reg
         self.d_iters = d_iters
-        self.start_epoch = 0
+        self.start_iter = 0
         self.best_mIOU = 0
-        self.save_path = save_path
-        self.best_path = best_path
+        self.experiment_dir = experiment_dir
+        self.save_path = os.path.join(experiment_dir, 'ckpt.pth.tar')
+        self.best_path = os.path.join(experiment_dir, 'best.pth.tar')
         if resume:
             self.load_model()
 
@@ -95,7 +95,7 @@ class Trainer():
         self._genoptimizer.step()
         return d_loss, g_loss, segmentation_loss
 
-    def train(self, num_epochs, print_every=100, eval_every=500, eval_debug=False):
+    def train(self, num_epochs, print_every=100, eval_every=200, eval_debug=False):
         """
         Trains the model for a specified number of epochs
         Args:
@@ -103,14 +103,14 @@ class Trainer():
             print_every: (int) number of minibatches to process before
                 printing loss. default=100
         """
-        writer = SummaryWriter()
+        writer = SummaryWriter(self.experiment_dir)
 
-        iter = 0
+        iter = self.start_iter
         batch_size = self._train_loader.batch_size
         num_samples = len(self._train_loader.dataset)
         epoch_len = int(num_samples / batch_size)
 
-        for epoch in range(self.start_epoch, num_epochs):
+        for epoch in range(num_epochs):
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, mini_batch_labels, mini_batch_labels_flat in self._train_loader:
                 self._gen.train()
@@ -123,21 +123,27 @@ class Trainer():
                         print ('Loss at iteration {}/{}: {}'.format(iter, epoch_len, segmentation_loss))
                     else:
                         writer.add_scalar('Train/GeneratorLoss', g_loss, iter)
+                        writer.add_scalar('Train/DiscriminatorLoss', d_loss, iter)
                         print("D_loss {}, G_loss {}, Seg loss at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len))
 
                 if iter % eval_every == 0:
-                    mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
-                    if self.best_mIOU < mIOU:
-                        self.best_mIOU = mIOU
-                    self.save_model(epoch, self.best_mIOU, self.best_mIOU == mIOU)
-                    writer.add_scalar('Train/MeanIOU', mIOU, iter)
-                    print("Mean IOU at iteration {}/{}: {}".format(iter, epoch_len, mIOU))
+                    val_acc = self.evaluate_pixel_accuracy(self._val_loader)
+                    print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
+                    val_mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
+                    if self.best_mIOU < val_mIOU:
+                        self.best_mIOU = val_mIOU
+                    self.save_model(iter, self.best_mIOU, self.best_mIOU == val_mIOU)
+                    writer.add_scalar('Val/MeanIOU', val_mIOU, iter)
+                    print("Mean IOU at iteration {}/{}: {}".format(iter, epoch_len, val_mIOU))
+                    train_mIOU = self.evaluate_meanIOU(self._train_loader, eval_debug)
+                    print ("Train Mean IOU at iteration {}/{}: {}".format(iter, epoch_len, train_mIOU))
+                    writer.add_scalar('Train/MeanIOU', train_mIOU, iter)
                 iter += 1
 
 
-    def save_model(self, epoch, mIOU, is_best):
+    def save_model(self, iter, mIOU, is_best):
         save_dict = {
-            'epoch': epoch + 1,
+            'epoch': iter + 1,
             'gen_dict': self._gen.state_dict(),
             'best_mIOU': mIOU,
             'gen_opt' : self._genoptimizer.state_dict()
@@ -157,7 +163,7 @@ class Trainer():
         if os.path.isfile(self.save_path):
             print("=> loading checkpoint '{}'".format(self.save_path))
             checkpoint = torch.load(self.save_path)
-            self.start_epoch = checkpoint['epoch']
+            self.start_iter = checkpoint['iter']
             self.best_mIOU = checkpoint['best_mIOU']
             self._gen.load_state_dict(checkpoint['gen_dict'])
             self._genoptimizer.load_state_dict(checkpoint['gen_opt'])
@@ -166,7 +172,7 @@ class Trainer():
                 self._discoptimizer.load_state_dict(checkpoint['disc_opt'])
                 self.gan_reg = checkpoint['gan_reg']
 
-            print("=> loaded checkpoint '{}' (epoch {})".format(self.save_path, checkpoint['epoch']))
+            print("=> loaded checkpoint '{}' (iter {})".format(self.save_path, checkpoint['iter']))
         else:
             print("=> no checkpoint found at '{}'".format(self.save_path))
 
@@ -177,12 +183,13 @@ class Trainer():
         true_pos = 0
         total_pix = 0
         for mini_batch_data, mini_batch_labels, _ in loader:
-            mini_batch_prediction = self._gen(mini_batch_data)
-            mini_batch_prediction = convert_to_mask(mini_batch_prediction)
+            mini_batch_data = mini_batch_data.to(self.device)
+            mini_batch_labels = mini_batch_labels.to(self.device)
+            mini_batch_prediction = convert_to_mask(self._gen(mini_batch_data)).to(self.device)
             ## This assumes mini_batch_pred and mini_batch labels are of size B x C x H x W
             true_pos += torch.sum(mini_batch_prediction * mini_batch_labels).item()
             total_pix += torch.sum(mini_batch_labels).item()
-        return float(true_pos) / total_pix
+        return float(true_pos) / (total_pix + 1e-12)
 
     def evaluate_pixel_mean_acc(self, loader):
         pix_acc = self.evaluate_pixel_accuracy(loader)
@@ -209,7 +216,7 @@ class Trainer():
             classPresent = (totalpix > 0).type(dtype=torch.float32) # Ignore class that was not originally present in the groundtruth
             truepositive = torch.sum(mask_gt * mask_pred, 2)
             falsepos = torch.sum(mask_pred, 2) - truepositive
-            mIOU += 1.0 / numClasses * torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-6))).item()
+            mIOU += 1.0 / numClasses * torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-12))).item()
             iter += 1
             if debug:
                 print ("Processed %d batches out of %d, accumulated mIOU : %f" % (iter, len(loader), mIOU))
