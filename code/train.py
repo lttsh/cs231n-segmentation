@@ -132,7 +132,6 @@ class Trainer():
                     self.save_model(epoch, self.best_mIOU, self.best_mIOU == mIOU)
                     writer.add_scalar('Train/MeanIOU', mIOU, iter)
                     print("Mean IOU at iteration {}/{}: {}".format(iter, epoch_len, mIOU))
-
                 iter += 1
 
 

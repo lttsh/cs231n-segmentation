@@ -45,8 +45,12 @@ if __name__ == "__main__":
     best_path = os.path.join(EXPERIMENT_DIR, 'best.pth.tar')
 
     # net = SegNetSmall(num_classes, pretrained=True)
-    generator = VerySmallNet(NUM_CLASSES)
-    discriminator = None
+    image_shape = (128, 128, 3)
+    segmentation_shape = (128, 128, NUM_CLASSES)
+    # generator = VerySmallNet(NUM_CLASSES)
+    generator = SegNetSmaller(NUM_CLASSES, pretrained=True, freeze_pretrained=True)
+    discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
+    # discriminator = None
     # net = SegNetSmaller(NUM_CLASSES, pretrained=True)
     train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train', width=128, height=128), args.batch_size, shuffle=True)
     val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val', width=128, height=128), args.batch_size, shuffle=False)

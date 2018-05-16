@@ -16,7 +16,7 @@ class CocoStuffDataSet(dset.CocoDetection):
     def __init__(
             self, img_dir='../cocostuff/images/',
             annot_dir='../cocostuff/annotations/',
-            mode='train', width=256, height=256,
+            mode='train', height=256, width=256,
             categories=None, supercategories=None,
             ):
         if width is None or height is None:
