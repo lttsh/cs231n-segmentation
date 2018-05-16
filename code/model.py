@@ -196,7 +196,7 @@ class GAN(nn.Module):
             *(nn.Conv2d(num_classes, 64, kernel_size=5, padding=2),
                nn.ReLU())
         )
-       
+
         self.enc1 = _EncoderBlock(128, 128)
         self.enc2 = nn.Sequential(
             *(nn.Conv2d(128, 128, kernel_size=3, padding=1),
