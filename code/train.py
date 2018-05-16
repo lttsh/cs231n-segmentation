@@ -69,9 +69,9 @@ class Trainer():
         """
         self._genoptimizer.zero_grad()
         mini_batch_data = mini_batch_data.to(self.device) # Input image (B, 3, H, W)
-        mini_batch_labels = mini_batch_labels.to(self.device) # Ground truth mask (B, C, H, W)
+        mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32) # Ground truth mask (B, C, H, W)
         mini_batch_labels_flat = mini_batch_labels_flat.to(self.device) # Groun truth mask flattened (B, H, W)
-        gen_out = self._gen(mini_batch_data).to(self.device) # Segmentation output from generator (B, C, H , W)
+        gen_out = self._gen(mini_batch_data) # Segmentation output from generator (B, C, H , W)
         gan_labels = torch.ones(1).to(self.device)
         g_loss = 0
         d_loss = 0
@@ -80,12 +80,12 @@ class Trainer():
         if self._disc is not None:
             self._discoptimizer.zero_grad()
             for i in range(self.d_iters):
-                scores_false = self._disc(mini_batch_data, gen_out) # (B,)
+                scores_false = self._disc(mini_batch_data, convert_to_mask(gen_out)) # (B,)
                 scores_true = self._disc(mini_batch_data, mini_batch_labels) # (B,)
                 d_loss = self._BCEcriterion(scores_true, gan_labels) - self._BCEcriterion(scores_false, gan_labels)
                 d_loss.backward()
                 self._discoptimizer.step()
-            scores_false = self._disc(mini_batch_data, gen_out)
+            scores_false = self._disc(mini_batch_data, convert_to_mask(gen_out))
             g_loss = self._BCEcriterion(scores_false, gan_labels)
 
         # Minimize segmentation loss
@@ -181,7 +181,7 @@ class Trainer():
         total_pix = 0
         for mini_batch_data, mini_batch_labels, _ in loader:
             mini_batch_data = mini_batch_data.to(self.device)
-            mini_batch_labels = mini_batch_labels.to(self.device)
+            mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32)
             mini_batch_prediction = convert_to_mask(self._gen(mini_batch_data)).to(self.device)
             ## This assumes mini_batch_pred and mini_batch labels are of size B x C x H x W
             true_pos += torch.sum(mini_batch_prediction * mini_batch_labels).item()
