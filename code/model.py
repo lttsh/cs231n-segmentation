@@ -179,60 +179,59 @@ class _EncoderBlock(nn.Module):
         return self.net(x)
                     
 class GAN(nn.Module):
-    def __init__(self, num_classes, segmentations_shape, images_shape):
+    def __init__(self, num_classes, images_shape, masks_shape):
         """
         Args:
             num_classes: (int) number of output classes to be predicted
             pretrained: (bool) if True loads vgg-11 pretrained weights. default=True
         """
         super().__init__()
-        self.segmentation_branch = nn.Sequential(
-            *(nn.Conv2d(num_classes, 64, kernel_size=5, padding=2),
-               nn.ReLU())
-        )
         self.image_branch = nn.Sequential(
             *(nn.Conv2d(3, 16, kernel_size=5, padding=2),
                nn.ReLU(),
                nn.Conv2d(16, 64, kernel_size=5, padding=2),
                nn.ReLU())
         )
+        self.masks_branch = nn.Sequential(
+            *(nn.Conv2d(num_classes, 64, kernel_size=5, padding=2),
+               nn.ReLU())
+        )
+       
         self.enc1 = _EncoderBlock(128, 128)
         self.enc2 = nn.Sequential(
             *(nn.Conv2d(128, 128, kernel_size=3, padding=1),
                nn.ReLU())
         )
-        features_len = self._get_conv_output(segmentations_shape, images_shape)
+        features_len = self._get_conv_output(images_shape, masks_shape)
         self.prediction = nn.Linear(features_len, 1)
         self.probability = nn.Sigmoid()
 
-    def forward(self, segmentations, images, segmentation_first=True):
+    def forward(self, images, masks):
         """
         Args:
-            segmentations: (N, C_classes, H, W) outputs of segmentation model
             images: (N, 3, H, W) input images
+            masks: (N, C_classes, H, W) outputs of segmentation model or ground truth
+
         Return:
             (N,) tensor: vector of probabilities that images is the ground truth
-                        label map of segmentations
+                        label map of masks
         """
-        features = self._forward_features(segmentations, images, segmentation_first)
+        features = self._forward_features(images, masks)
         prediction = self.prediction(features)
         return self.probability(prediction)
 
     # generate input sample and forward to get shape
-    def _get_conv_output(self, segmentations_shape, images_shape):
-        segmentations = torch.rand(1, *segmentations_shape)
+    def _get_conv_output(self, images_shape, masks_shape):
         images = torch.rand(1, *images_shape)
+        masks = torch.rand(1, *masks_shape)
 
-        output_feat = self._forward_features(segmentations, images)
+        output_feat = self._forward_features(images, masks)
         return output_feat.size(1)
 
-    def _forward_features(self, segmentations, images, segmentation_first=True):
-        seg = self.segmentation_branch(segmentations)
-        im = self.image_branch(images)
-        if segmentation_first:
-            mixed = torch.cat([seg, im], 1)
-        else:
-            mixed = torch.cat([im, seg], 1)
+    def _forward_features(self, images, masks):
+        images = self.image_branch(images)
+        masks = self.masks_branch(masks)
+        mixed = torch.cat([images, masks], 1)
         enc1 = self.enc1(mixed)
         enc2 = self.enc2(enc1)
         return flatten(enc2)

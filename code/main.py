@@ -42,12 +42,12 @@ if __name__ == "__main__":
         os.makedirs(EXPERIMENT_DIR)
 
     HEIGHT, WIDTH = 128, 128
-    image_shape = (3, HEIGHT, WIDTH)
-    segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
+    images_shape = (3, HEIGHT, WIDTH)
+    masks_shape = (NUM_CLASSES, HEIGHT, WIDTH)
     # generator = VerySmallNet(NUM_CLASSES)
-    discriminator = None
+    # discriminator = None
     generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
-    #discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
+    discriminator = GAN(NUM_CLASSES, images_shape, masks_shape)
     train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train', height=HEIGHT, width=WIDTH),
                               args.batch_size, shuffle=True)
     val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val', height=HEIGHT, width=WIDTH),

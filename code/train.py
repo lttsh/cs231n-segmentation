@@ -48,7 +48,7 @@ class Trainer():
         self.start_epoch = 0
         self.best_mIOU = 0
 
-        sekf.experiment_dir = experiment_dir
+        self.experiment_dir = experiment_dir
         self.save_path = os.path.join(experiment_dir, 'ckpt.pth.tar')
         self.best_path = os.path.join(experiment_dir, 'best.pth.tar')
 
@@ -72,22 +72,25 @@ class Trainer():
         """
         self._genoptimizer.zero_grad()
         mini_batch_data = mini_batch_data.to(self.device) # Input image (B, 3, H, W)
-        mini_batch_labels = mini_batch_labels.to(self.device) # Ground truth mask (B, C, H, W)
+        mini_batch_labels = mini_batch_labels.float().to(self.device) # Ground truth mask (B, C, H, W)
         mini_batch_labels_flat = mini_batch_labels_flat.to(self.device) # Groun truth mask flattened (B, H, W)
         gen_out = self._gen(mini_batch_data).to(self.device) # Segmentation output from generator (B, C, H , W)
-        gan_labels = torch.ones(1).to(self.device)
+        batch_size = mini_batch_data.size(0)
+        gan_labels = torch.ones(batch_size, 1).to(self.device)
         g_loss = 0
         d_loss = 0
 
         # Minimize GAN Loss
         if self._disc is not None:
-            self._discoptimizer.zero_grad()
             for i in range(self.d_iters):
+                print("Disc iter: {}".format(i))
+                self._discoptimizer.zero_grad()
                 scores_false = self._disc(mini_batch_data, gen_out) # (B,)
                 scores_true = self._disc(mini_batch_data, mini_batch_labels) # (B,)
                 d_loss = self._BCEcriterion(scores_true, gan_labels) - self._BCEcriterion(scores_false, gan_labels)
-                d_loss.backward()
+                d_loss.backward(retain_graph=(i < self.d_iters-1))
                 self._discoptimizer.step()
+            self._discoptimizer.zero_grad()
             scores_false = self._disc(mini_batch_data, gen_out)
             g_loss = self._BCEcriterion(scores_false, gan_labels)
 
