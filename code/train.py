@@ -222,11 +222,14 @@ class Trainer():
         total = 0
         mIOU = 0.0
         iter = 0
-        for data, mask_gt, _ in loader:
+        for data, mask_gt, gt_visual in loader:
             data = data.to(self.device)
             batch_size = data.size()[0]
             total += batch_size
             mask_pred = convert_to_mask(self._gen(data))
+            if debug:
+                visualize_mask(data, gt_visual, mask_pred)
+
             mask_gt = mask_gt.view((batch_size, numClasses, -1)).type(dtype=torch.float32).to(self.device)
             mask_pred = mask_pred.view((batch_size, numClasses, -1)).to(self.device)
 

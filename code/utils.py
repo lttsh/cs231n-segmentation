@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import matplotlib.pyplot as plt
 
 '''
     Converts a prediction Tensor (scores) into a masks
@@ -40,3 +41,32 @@ def initialize_weights(*models):
             elif isinstance(module, nn.BatchNorm2d):
                 module.weight.data.fill_(1)
                 module.bias.data.zero_()
+
+def visualize_mask(data, gt, pred):    
+    for i in range(len(data)):    
+        img = data[i].detach().numpy()
+        gt_mask = gt[i].detach().numpy()
+        pred_mask = np.argmax(pred[i].detach().numpy(), axis=0)
+
+        print("Image Size: ", img.shape)
+        display_image = np.transpose(img, (1, 2, 0))
+        plt.figure()
+        
+        plt.subplot(131)
+        plt.imshow(display_image)
+        plt.axis('off')
+        plt.title('original image')
+        
+        plt.subplot(132)
+        plt.imshow(display_image)
+        plt.imshow(gt_mask, alpha=1.0)
+        plt.axis('off')
+        plt.title('real mask')
+        
+        plt.subplot(133)
+        plt.imshow(display_image)
+        plt.imshow(pred_mask, alpha=1.0)
+        plt.axis('off')
+        plt.title('predicted mask')
+
+        plt.show()
