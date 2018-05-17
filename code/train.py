@@ -81,7 +81,7 @@ class Trainer():
             scores_false = self._disc(mini_batch_data, converted_mask) # (B,)
             scores_true = self._disc(mini_batch_data, mini_batch_labels) # (B,)
             d_loss = torch.mean(scores_false) - torch.mean(scores_true)
-            d_loss.backward()#retain_graph=(i < self.d_iters-1))
+            d_loss.backward()
             self._discoptimizer.step()
             # W-GAN weight clipping
             for p in self._disc.parameters():
@@ -115,23 +115,21 @@ class Trainer():
         batch_size = self._train_loader.batch_size
         num_samples = len(self._train_loader.dataset)
         epoch_len = int(num_samples / batch_size)
-        disc_train_iter = 0
         d_loss=0
         g_loss=0
         segmentation_loss=0
         for epoch in range(num_epochs):
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, mini_batch_labels, mini_batch_labels_flat in self._train_loader:
-                if self._disc is not None and disc_train_iter < self.d_iters:
-                    self._disc.train()
-                    d_loss, _ = self._train_batch(
-                            mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'disc')
-                    disc_train_iter+= 1
-                else:
-                    self._gen.train()
-                    g_loss, segmentation_loss = self._train_batch(
-                            mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'gen')
-                    disc_train_iter=0
+                if self._disc is not None:
+                    for disc_train_iter in range(self.d_iters):
+                        self._disc.train()
+                        d_loss, _ = self._train_batch(
+                                mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'disc')
+                
+                self._gen.train()
+                g_loss, segmentation_loss = self._train_batch(
+                        mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'gen')
 
                 if iter % print_every == 0:
                     writer.add_scalar('Train/SegmentationLoss', segmentation_loss, iter)
