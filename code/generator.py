@@ -188,7 +188,6 @@ class SegNet16(nn.Module):
         enc3 = self.enc3(enc2)
         enc4 = self.enc4(enc3)
         enc5 = self.enc5(enc4)
-        # print (enc1.size(), enc2.size(), enc3.size(), enc4.size(), enc5.size())
         dec5 = self.dec5(enc5)
         dec4 = self.dec4(torch.cat([enc4, dec5], 1))
         dec3 = self.dec3(torch.cat([enc3, dec4], 1))

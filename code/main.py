@@ -82,4 +82,7 @@ if __name__ == "__main__":
     elif args.mode == 'eval':
         assert(args.load_model), "Need to load model to evaluate it"
         # just do evaluation
-        print ('mIOU {}'.format(trainer.evaluate_meanIOU(val_loader)))
+        print ('Val mIOU {}'.format(trainer.evaluate_meanIOU(val_loader, False)))
+        # print ('Train mIOU {}'.format(trainer.evaluate_meanIOU(train_loader, True)))
+        print ('Val Pixel Accuracy {}'.format(trainer.evaluate_pixel_accuracy(val_loader)))
+        print ('Train Pixel Accuracy {}'.format(trainer.evaluate_pixel_accuracy(train_loader)))

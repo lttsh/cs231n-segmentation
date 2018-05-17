@@ -106,7 +106,7 @@ class CocoStuffDataSet(dset.CocoDetection):
             print ("%f images contain category %d" % (float(len(ids))/float(len(self)), catId))
 
     def display(self, img_id):
-        img, masks = self[img_id]
+        img, _, masks = self[img_id]
         print("Image Size: ", img.size())
         display_image = np.transpose(img.numpy(), (1, 2, 0))
         plt.figure()
