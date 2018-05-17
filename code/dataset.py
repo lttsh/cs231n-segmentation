@@ -2,11 +2,13 @@ import torch
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 
+import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import misc
 from PIL import Image
 import os
+from utils import discrete_cmap
 
 class CocoStuffDataSet(dset.CocoDetection):
     '''
@@ -116,7 +118,10 @@ class CocoStuffDataSet(dset.CocoDetection):
         plt.title('original image')
         plt.subplot(122)
         plt.imshow(display_image)
-        plt.imshow(masks, alpha=1.0)
+        print (np.unique(masks))
+        cmap = discrete_cmap(self.numClasses, 'Paired')
+        norm = colors.NoNorm(vmin=0, vmax=self.numClasses)
+        plt.imshow(masks, alpha=0.8, cmap=cmap, norm=norm)
         # plt.imshow(masks[-1], alpha=1.0)
         plt.axis('off')
         plt.title('annotated image')
@@ -125,5 +130,6 @@ class CocoStuffDataSet(dset.CocoDetection):
 if __name__ == "__main__":
     ## Display
     cocostuff = CocoStuffDataSet(supercategories=['animal'])
-    cocostuff.display(np.random.randint(low=0, high=220))
+    for _ in range(10):
+        cocostuff.display(np.random.randint(low=0, high=len(cocostuff)))
     cocostuff.gather_stats()
