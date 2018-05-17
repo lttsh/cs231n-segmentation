@@ -157,11 +157,14 @@ class SegNet16(nn.Module):
         vgg = models.vgg16_bn(pretrained)
 
         features = list(vgg.features.children())
-        self.enc1 = nn.Sequential(*features[:3]) # Enc1 C_out 64
-        self.enc2 = nn.Sequential(*features[3:6]) # Enc2 C_out 128
-        self.enc3 = nn.Sequential(*features[6:10]) # Enc3 C_out 256
-        self.enc4 = nn.Sequential(*features[10:14]) # Enc4 C_out 512
-        self.enc5 = nn.Sequential(*features[14:18]) # Enc5 C_out 512
+        # for feat in features:
+        #   print(feat)
+        print(len(features))
+        self.enc1 = nn.Sequential(*features[:7]) # Enc1 C_out 64
+        self.enc2 = nn.Sequential(*features[7:14]) # Enc2 C_out 128
+        self.enc3 = nn.Sequential(*features[14:24]) # Enc3 C_out 256
+        self.enc4 = nn.Sequential(*features[24:34]) # Enc4 C_out 512
+        self.enc5 = nn.Sequential(*features[34:44]) # Enc5 C_out 512
 
         if freeze_pretrained:
             for param in self.parameters():
@@ -185,11 +188,11 @@ class SegNet16(nn.Module):
         enc3 = self.enc3(enc2)
         enc4 = self.enc4(enc3)
         enc5 = self.enc5(enc4)
-        print(enc1.size(), enc2.size(), enc3.size(), enc4.size(), enc5.size())
+        # print (enc1.size(), enc2.size(), enc3.size(), enc4.size(), enc5.size())
         dec5 = self.dec5(enc5)
         dec4 = self.dec4(torch.cat([enc4, dec5], 1))
         dec3 = self.dec3(torch.cat([enc3, dec4], 1))
         dec2 = self.dec2(torch.cat([enc2, dec3], 1))
         dec1 = self.dec1(torch.cat([enc1, dec2], 1))
 
-        return dec_1
+        return dec1
