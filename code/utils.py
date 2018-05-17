@@ -42,8 +42,8 @@ def initialize_weights(*models):
                 module.weight.data.fill_(1)
                 module.bias.data.zero_()
 
-def visualize_mask(data, gt, pred):    
-    for i in range(len(data)):    
+def visualize_mask(data, gt, pred):
+    for i in range(len(data)):
         img = data[i].detach().numpy()
         gt_mask = gt[i].detach().numpy()
         pred_mask = np.argmax(pred[i].detach().numpy(), axis=0)
@@ -51,18 +51,18 @@ def visualize_mask(data, gt, pred):
         print("Image Size: ", img.shape)
         display_image = np.transpose(img, (1, 2, 0))
         plt.figure()
-        
+
         plt.subplot(131)
         plt.imshow(display_image)
         plt.axis('off')
         plt.title('original image')
-        
+
         plt.subplot(132)
         plt.imshow(display_image)
         plt.imshow(gt_mask, alpha=1.0)
         plt.axis('off')
         plt.title('real mask')
-        
+
         plt.subplot(133)
         plt.imshow(display_image)
         plt.imshow(pred_mask, alpha=1.0)
@@ -70,3 +70,17 @@ def visualize_mask(data, gt, pred):
         plt.title('predicted mask')
 
         plt.show()
+
+
+# SOurce : https://gist.github.com/jakevdp/91077b0cae40f8f8244a
+def discrete_cmap(N, base_cmap=None):
+    """Create an N-bin discrete colormap from the specified input map"""
+
+    # Note that if base_cmap is a string or None, you can simply do
+    return plt.cm.get_cmap(base_cmap, N)
+    # The following works for string, None, or a colormap instance:
+
+    base = plt.cm.get_cmap(base_cmap)
+    color_list = base(np.linspace(0, 1, N))
+    cmap_name = base.name + str(N)
+    return base.from_list(cmap_name, color_list, N)
