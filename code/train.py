@@ -215,36 +215,6 @@ class Trainer():
         pix_acc = self.evaluate_pixel_accuracy(loader)
         return 1.0 / loader.dataset.numClasses * pix_acc
 
-    def evaluate_meanIOU(self, loader, debug=False):
-        print ("Evaluating mean IOU")
-        self._gen.eval()
-        if self._disc is not None:
-            self._disc.eval()
-        numClasses = loader.dataset.numClasses
-        total = 0
-        mIOU = 0.0
-        iter = 0
-        for data, mask_gt, gt_visual in loader:
-            data = data.to(self.device)
-            batch_size = data.size()[0]
-            total += batch_size
-            mask_pred = convert_to_mask(self._gen(data))
-            if debug:
-                visualize_mask(data, gt_visual, mask_pred)
-
-            mask_gt = mask_gt.view((batch_size, numClasses, -1)).type(dtype=torch.float32).to(self.device)
-            mask_pred = mask_pred.view((batch_size, numClasses, -1)).to(self.device)
-
-            totalpix = torch.sum(mask_gt, 2)
-            classPresent = (totalpix > 0).type(dtype=torch.float32) # Ignore class that was not originally present in the groundtruth
-            truepositive = torch.sum(mask_gt * mask_pred, 2)
-            falsepos = torch.sum(mask_pred, 2) - truepositive
-            mIOU += 1.0 / numClasses * torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-12))).item()
-            iter += 1
-            if debug:
-                print ("Processed %d batches out of %d, accumulated mIOU : %f" % (iter, len(loader), mIOU))
-        return 1.0 / total * mIOU
-
     def evaluate_meanIOU(self, loader, debug=False, ignore_background=False):
         print ("Evaluating mean IOU")
         self._gen.eval()
@@ -269,7 +239,7 @@ class Trainer():
             classPresent = (totalpix > 0).type(dtype=torch.float32) # Ignore class that was not originally present in the groundtruth
             truepositive = torch.sum(mask_gt * mask_pred, 2)
             falsepos = torch.sum(mask_pred, 2) - truepositive
-            mIOU += 1.0 / numClasses * torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-12))).item()
+            mIOU += 1.0 / classPresent.sum(1) * torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-12))).item()
             iter += 1
             if debug:
                 print ("Processed %d batches out of %d, accumulated mIOU : %f" % (iter, len(loader), mIOU))
