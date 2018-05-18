@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 
 '''
     Converts a prediction Tensor (scores) into a masks
@@ -42,13 +43,16 @@ def initialize_weights(*models):
                 module.weight.data.fill_(1)
                 module.bias.data.zero_()
 
+total_saved = 0
 def visualize_mask(data, gt, pred):    
-    for i in range(len(data)):    
+    num_classes = 11
+    global total_saved
+    for i in range(len(data)):
+        total_saved += 1    
         img = data[i].detach().cpu().numpy()
         gt_mask = gt[i].detach().cpu().numpy()
         pred_mask = np.argmax(pred[i].detach().cpu().numpy(), axis=0)
 
-        print("Image Size: ", img.shape)
         display_image = np.transpose(img, (1, 2, 0))
         plt.figure()
 
@@ -56,19 +60,22 @@ def visualize_mask(data, gt, pred):
         plt.imshow(display_image)
         plt.axis('off')
         plt.title('original image')
+        
+        cmap = discrete_cmap(num_classes, 'Paired')
+        norm = colors.NoNorm(vmin=0, vmax=num_classes)
 
         plt.subplot(132)
         plt.imshow(display_image)
-        plt.imshow(gt_mask, alpha=0.5)
+        plt.imshow(gt_mask, alpha=0.8, cmap=cmap, norm=norm)
         plt.axis('off')
         plt.title('real mask')
 
         plt.subplot(133)
         plt.imshow(display_image)
-        plt.imshow(pred_mask, alpha=0.5)
+        plt.imshow(pred_mask, alpha=0.8, cmap=cmap, norm=norm)
         plt.axis('off')
         plt.title('predicted mask')
-
+        plt.savefig('saved_{}.png'.format(total_saved))
         plt.show()
 
 

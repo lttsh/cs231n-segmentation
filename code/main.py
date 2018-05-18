@@ -62,10 +62,10 @@ if __name__ == "__main__":
     HEIGHT, WIDTH = args.size, args.size
     image_shape = (3, HEIGHT, WIDTH)
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
-    # generator = VerySmallNet(NUM_CLASSES)
+    generator = VerySmallNet(NUM_CLASSES)
     discriminator = None
     # generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
-    generator = SegNet16(NUM_CLASSES, pretrained=True)
+    # generator = SegNet16(NUM_CLASSES, pretrained=True)
     # discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
 
     val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val', height=HEIGHT, width=WIDTH),
@@ -82,7 +82,4 @@ if __name__ == "__main__":
     elif args.mode == 'eval':
         assert(args.load_model), "Need to load model to evaluate it"
         # just do evaluation
-        print ('Val mIOU {}'.format(trainer.evaluate_meanIOU(val_loader, False)))
-        # print ('Train mIOU {}'.format(trainer.evaluate_meanIOU(train_loader, True)))
-        print ('Val Pixel Accuracy {}'.format(trainer.evaluate_pixel_accuracy(val_loader)))
-        print ('Train Pixel Accuracy {}'.format(trainer.evaluate_pixel_accuracy(train_loader)))
+       print ('mIOU {}'.format(trainer.evaluate_meanIOU(val_loader, debug=True)))
