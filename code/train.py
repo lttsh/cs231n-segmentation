@@ -239,7 +239,9 @@ class Trainer():
             classPresent = (totalpix > 0).type(dtype=torch.float32) # Ignore class that was not originally present in the groundtruth
             truepositive = torch.sum(mask_gt * mask_pred, 2)
             falsepos = torch.sum(mask_pred, 2) - truepositive
-            mIOU += torch.sum(classPresent.sum(1).reciprocal() * classPresent * (truepositive / (totalpix + falsepos + 1e-12))).item()
+            numerator = torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-12)), 1)
+            denominator = classPresent.sum(1)
+            mIOU +=  torch.sum(numerator / denominator).item()
             # mIOU += 1.0 / numClasses * torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-12))).item()
             iter += 1
             if debug:
