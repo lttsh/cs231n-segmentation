@@ -233,7 +233,9 @@ class Trainer():
             mask_pred = mask_pred.view((batch_size, numClasses, -1)).to(self.device)
 
             if ignore_background:
-                mask_gt, mask_pred = mask_gt[:,:-1,:], mask_pred[:,:-1,:]
+                mask_gt = mask_gt.narrow(1, 0, numClasses-1)
+                mask_pred = mask_pred.narrow(1, 0, numClasses-1)
+                #mask_gt, mask_pred = mask_gt[:,:-1,:], mask_pred[:,:-1,:]
 
             totalpix = torch.sum(mask_gt, 2)
             classPresent = (totalpix > 0).type(dtype=torch.float32) # Ignore class that was not originally present in the groundtruth
@@ -241,8 +243,9 @@ class Trainer():
             falsepos = torch.sum(mask_pred, 2) - truepositive
             numerator = torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-12)), 1)
             denominator = classPresent.sum(1)
-            mIOU +=  torch.sum(numerator / denominator).item()
-            # mIOU += 1.0 / numClasses * torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-12))).item()
+            fraction = (numerator / denominator).masked_select(denominator > 0)
+            mIOU +=  torch.sum(fraction).item()
+
             iter += 1
             if debug:
                 print ("Processed %d batches out of %d, accumulated mIOU : %f" % (iter, len(loader), mIOU))
