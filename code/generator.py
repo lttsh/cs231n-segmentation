@@ -21,15 +21,15 @@ class _DecoderBlock(nn.Module):
         layers = [
             nn.ConvTranspose2d(in_channels, in_channels, kernel_size=2, stride=2),
             nn.Conv2d(in_channels, middle_channels, kernel_size=3, padding=1),
-            nn.ReLU()
+            nn.LeakyRelu()
         ]
         layers += [
                       nn.Conv2d(middle_channels, middle_channels, kernel_size=3, padding=1),
-                      nn.ReLU(),
+                      nn.LeakyRelu(),
                   ] * (num_conv_layers - 2)
         layers += [
             nn.Conv2d(middle_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(),
+            nn.LeakyRelu(),
         ]
         self.decode = nn.Sequential(*layers)
 
@@ -77,7 +77,7 @@ class SegNetSmall(nn.Module):
         self.dec5 = nn.Sequential(
             *([nn.ConvTranspose2d(512, 512, kernel_size=2, stride=2)] +
               [nn.Conv2d(512, 512, kernel_size=3, padding=1),
-               nn.ReLU()] * 2)
+               nn.LeakyRelu()] * 2)
         )
         self.dec4 = _DecoderBlock(1024, 256, 2)
         self.dec3 = _DecoderBlock(512, 128, 2)
@@ -173,7 +173,7 @@ class SegNet16(nn.Module):
         self.dec5 = nn.Sequential(
             *([nn.ConvTranspose2d(512, 512, kernel_size=2, stride=2)] +
               [nn.Conv2d(512, 512, kernel_size=3, padding=1),
-               nn.ReLU()] * 2)
+               nn.LeakyRelu()] * 2)
         )
         self.dec4 = _DecoderBlock(1024, 256, 2) # Dec4
         self.dec3 = _DecoderBlock(512, 128, 2) # Dec3
@@ -193,5 +193,5 @@ class SegNet16(nn.Module):
         dec3 = self.dec3(torch.cat([enc3, dec4], 1))
         dec2 = self.dec2(torch.cat([enc2, dec3], 1))
         dec1 = self.dec1(torch.cat([enc1, dec2], 1))
-
+        dec1 = nn.Tanh(dec1)
         return dec1
