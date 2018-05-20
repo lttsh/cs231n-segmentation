@@ -76,8 +76,8 @@ class Trainer():
         mini_batch_labels_flat = mini_batch_labels_flat.to(self.device) # Groun truth mask flattened (B, H, W)
         gen_out = self._gen(mini_batch_data) # Segmentation output from generator (B, C, H , W)
         converted_mask = convert_to_mask(gen_out).to(self.device)
-        false_labels = torch.zeros((mini_batch_data.size()[0]))
-        true_labels = torch.ones(mini_batch_data.size()[0])
+        false_labels = torch.zeros((mini_batch_data.size()[0], 1)).to(self.device)
+        true_labels = torch.ones((mini_batch_data.size()[0], 1)).to(self.device)
         if mode == 'disc' and self._disc is not None:
             d_loss = 0
             self._discoptimizer.zero_grad()
@@ -123,8 +123,6 @@ class Trainer():
         d_loss=0
         g_loss=0
         segmentation_loss=0
-        val_acc = self.evaluate_pixel_accuracy(self._val_loader)
-        print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
         for epoch in range(self.start_epoch, num_epochs):
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, mini_batch_labels, mini_batch_labels_flat in self._train_loader:
@@ -145,19 +143,19 @@ class Trainer():
                     else:
                         writer.add_scalar('Train/GeneratorLoss', g_loss, iter + epoch * epoch_len)
                         writer.add_scalar('Train/DiscriminatorLoss', d_loss, iter + epoch * epoch_len)
-                        writer.add_scalar('Train/OverallLoss', self.gan_reg * d_loss + g_loss + segmentation_loss, iter + epoch * epoch_len)
+                        writer.add_scalar('Train/GanLoss', d_loss + g_loss, iter + epoch * epoch_len)
                         print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))
-                        print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * d_loss + g_loss + segmentation_loss))
+                        print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * (d_loss + g_loss) + segmentation_loss))
                 if eval_every > 0 and (iter + epoch * epoch_len) % eval_every == 0:
-                    val_acc = self.evaluate_pixel_accuracy(self._val_loader)
-                    print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
+                    # val_acc = self.evaluate_pixel_accuracy(self._val_loader)
+                    # print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
                     # train_mIOU = self.evaluate_meanIOU(self._train_loader, eval_debug)
                     val_mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
                     if self.best_mIOU < val_mIOU:
                         self.best_mIOU = val_mIOU
                     self.save_model(iter, epoch, self.best_mIOU, self.best_mIOU == val_mIOU)
                     writer.add_scalar('Val/MeanIOU', val_mIOU, iter + epoch * epoch_len)
-                    writer.add_scalar('Val/PixelAcc', train_acc, iter + epoch * epoch_len)
+                    # writer.add_scalar('Val/PixelAcc', train_acc, iter + epoch * epoch_len)
                     print("Validation Mean IOU at iteration {}/{}: {}".format(iter, epoch_len - 1, val_mIOU))
                 iter += 1
             iter = 0
