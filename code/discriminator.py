@@ -15,7 +15,7 @@ class _EncoderBlock(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
                         *(nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-                        nn.LeakyRelu(),
+                        nn.LeakyReLU(),
                         nn.MaxPool2d(kernel_size=2)))
 
     def forward(self, x):
@@ -31,19 +31,19 @@ class GAN(nn.Module):
         super().__init__()
         self.image_branch = nn.Sequential(
             *(nn.Conv2d(3, 16, kernel_size=5, padding=2),
-               nn.LeakyRelu(),
+               nn.LeakyReLU(),
                nn.Conv2d(16, 64, kernel_size=5, padding=2),
-               nn.LeakyRelu())
+               nn.LeakyReLU())
         )
         self.masks_branch = nn.Sequential(
             *(nn.Conv2d(num_classes, 64, kernel_size=5, padding=2),
-               nn.LeakyRelu())
+               nn.LeakyReLU())
         )
 
         self.enc1 = _EncoderBlock(128, 128)
         self.enc2 = nn.Sequential(
             *(nn.Conv2d(128, 128, kernel_size=3, padding=1),
-               nn.LeakyRelu())
+               nn.LeakyReLU())
         )
         features_len = self._get_conv_output(images_shape, masks_shape)
         self.prediction = nn.Linear(features_len, 1)
