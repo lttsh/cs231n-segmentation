@@ -78,6 +78,8 @@ class Trainer():
         if mode == 'disc' and self._disc is not None:
             d_loss = 0
             self._discoptimizer.zero_grad()
+            print (converted_mask)
+            print (mini_batch_labels)
             scores_false = self._disc(mini_batch_data, converted_mask) # (B,)
             scores_true = self._disc(mini_batch_data, mini_batch_labels) # (B,)
             d_loss = torch.mean(scores_false) - torch.mean(scores_true)
@@ -118,6 +120,7 @@ class Trainer():
         d_loss=0
         g_loss=0
         segmentation_loss=0
+
         for epoch in range(self.start_epoch, num_epochs):
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, mini_batch_labels, mini_batch_labels_flat in self._train_loader:
@@ -138,19 +141,20 @@ class Trainer():
                     else:
                         writer.add_scalar('Train/GeneratorLoss', g_loss, iter + epoch * epoch_len)
                         writer.add_scalar('Train/DiscriminatorLoss', d_loss, iter + epoch * epoch_len)
-                        writer.add_scalar('Train/OverallLoss', self.gan_reg * d_loss + g_loss + segmentation_loss, iter + epoch * epoch_len)
+                        writer.add_scalar('Train/GANLoss', d_loss + g_loss, iter + epoch * epoch_len)
+                        writer.add_scalar('Train/SegmentationLoss', segmentation_loss, iter + epoch * epoch_len)
                         print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))
                         print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * d_loss + g_loss + segmentation_loss))
                 if eval_every > 0 and (iter + epoch * epoch_len) % eval_every == 0:
-                    val_acc = self.evaluate_pixel_accuracy(self._val_loader)
-                    print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
+                    # val_acc = self.evaluate_pixel_accuracy(self._val_loader)
+                    # print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
                     # train_mIOU = self.evaluate_meanIOU(self._train_loader, eval_debug)
                     val_mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
                     if self.best_mIOU < val_mIOU:
                         self.best_mIOU = val_mIOU
                     self.save_model(iter, epoch, self.best_mIOU, self.best_mIOU == val_mIOU)
                     writer.add_scalar('Val/MeanIOU', val_mIOU, iter + epoch * epoch_len)
-                    writer.add_scalar('Val/PixelAcc', train_acc, iter + epoch * epoch_len)
+                    # writer.add_scalar('Val/PixelAcc', val_acc, iter + epoch * epoch_len)
                     print("Validation Mean IOU at iteration {}/{}: {}".format(iter, epoch_len - 1, val_mIOU))
                 iter += 1
             iter = 0
@@ -199,15 +203,21 @@ class Trainer():
     def evaluate_pixel_accuracy(self, loader, ignore_background=False):
         true_pos = 0
         total_pix = 0
+        self._gen.eval()
+        if self._disc is not None:
+            self._disc.eval()
         for mini_batch_data, mini_batch_labels, _ in loader:
             mini_batch_data = mini_batch_data.to(self.device)
             mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32)
             mini_batch_prediction = convert_to_mask(self._gen(mini_batch_data)).to(self.device)
+            # print (mini_batch_prediction.size(), mini_batch_labels.size())
             ## This assumes mini_batch_pred and mini_batch labels are of size B x C x H x W
             if ignore_background:
                 mini_batch_prediction, mini_batch_labels = mini_batch_prediction[:,:-1,:,:], mini_batch_labels[:,:-1,:,:]
             true_pos += torch.sum(mini_batch_prediction * mini_batch_labels).item()
             total_pix += torch.sum(mini_batch_labels).item()
+        print (total_pix)
+        print (true_pos)
         return float(true_pos) / (total_pix + 1e-12) 
 
     def evaluate_pixel_mean_acc(self, loader):

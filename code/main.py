@@ -31,6 +31,7 @@ if __name__ == "__main__":
     parser.add_argument('--experiment_name', '-n', type=str, default=None,
                         help='name of experiment used for saving loading checkpoints')
     # GAN Hyperparameters
+    parser.add_argument('--use_gan', default=1, type=int)
     parser.add_argument('--disc_lr', default=1e-2, type=float,
                         help='Learning rate for discriminator')
     parser.add_argument('--gen_lr', default=0.1, type=float,
@@ -66,7 +67,9 @@ if __name__ == "__main__":
     discriminator = None
     # generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
     generator = SegNet16(NUM_CLASSES, pretrained=True)
-    discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
+    if args.use_gan:
+        print ("Use GAN")
+        discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
 
     val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val', height=HEIGHT, width=WIDTH),
                                 args.batch_size, shuffle=False)
