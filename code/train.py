@@ -142,17 +142,16 @@ class Trainer():
                         print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))
                         print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * d_loss + g_loss + segmentation_loss))
                 if eval_every > 0 and (iter + epoch * epoch_len) % eval_every == 0:
-                    # val_acc = self.evaluate_pixel_accuracy(self._val_loader)
-                    # print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
-                    train_mIOU = self.evaluate_meanIOU(self._train_loader, eval_debug)
+                    val_acc = self.evaluate_pixel_accuracy(self._val_loader)
+                    print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
+                    # train_mIOU = self.evaluate_meanIOU(self._train_loader, eval_debug)
                     val_mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
                     if self.best_mIOU < val_mIOU:
                         self.best_mIOU = val_mIOU
                     self.save_model(iter, epoch, self.best_mIOU, self.best_mIOU == val_mIOU)
                     writer.add_scalar('Val/MeanIOU', val_mIOU, iter + epoch * epoch_len)
-                    writer.add_scalar('Train/MeanIOU', train_mIOU, iter + epoch * epoch_len)
+                    writer.add_scalar('Val/PixelAcc', train_acc, iter + epoch * epoch_len)
                     print("Validation Mean IOU at iteration {}/{}: {}".format(iter, epoch_len - 1, val_mIOU))
-                    print("Train Mean IOU at iteration {}/{}: {}".format(iter, epoch_len - 1, train_mIOU))
                 iter += 1
             iter = 0
 
