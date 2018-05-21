@@ -92,8 +92,8 @@ class Trainer():
                 p.data.clamp_(-self.weight_clip, self.weight_clip)
             return d_loss, None
         if mode == 'gen':
-            g_loss = 0
             self._genoptimizer.zero_grad()
+            g_loss = 0
             # GAN part
             if self._disc is not None:
                 scores_false = self._disc(mini_batch_data, converted_mask)
@@ -145,6 +145,7 @@ class Trainer():
                         writer.add_scalar('Train/GeneratorLoss', g_loss, iter + epoch * epoch_len)
                         writer.add_scalar('Train/DiscriminatorLoss', d_loss, iter + epoch * epoch_len)
                         writer.add_scalar('Train/GanLoss', d_loss + g_loss, iter + epoch * epoch_len)
+                        writer.add_scalar('Train/TotalLoss', self.gan_reg * (d_loss + g_loss) + segmentation_loss, iter + epoch * epoch_len)
                         print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))
                         print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * (d_loss + g_loss) + segmentation_loss))
                 if eval_every > 0 and (iter + epoch * epoch_len) % eval_every == 0:
