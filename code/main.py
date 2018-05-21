@@ -73,8 +73,8 @@ if __name__ == "__main__":
     discriminator = None
     # generator = VerySmallNet(NUM_CLASSES)
     # generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
-    # generator = SegNet16(NUM_CLASSES, pretrained=True)
-    generator = VerySmallNet(NUM_CLASSES)
+    generator = SegNet16(NUM_CLASSES, pretrained=True)
+    # generator = VerySmallNet(NUM_CLASSES)
     if args.use_gan:
         print ("Use GAN")
         discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
