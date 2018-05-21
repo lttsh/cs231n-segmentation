@@ -123,19 +123,20 @@ class Trainer():
         d_loss=0
         g_loss=0
         segmentation_loss=0
+        d_iter = 0
         for epoch in range(self.start_epoch, num_epochs):
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, mini_batch_labels, mini_batch_labels_flat in self._train_loader:
-                if self._disc is not None:
-                    for disc_train_iter in range(self.d_iters):
-                        self._disc.train()
-                        d_loss, _ = self._train_batch(
-                                mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'disc')
-
-                self._gen.train()
-                g_loss, segmentation_loss = self._train_batch(
-                        mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'gen')
-
+                if self._disc is not None and d_iter < self.d_iters:
+                    self._disc.train()
+                    d_loss, _ = self._train_batch(
+                            mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'disc')
+                    d_iter+= 1
+                else:
+                    self._gen.train()
+                    g_loss, segmentation_loss = self._train_batch(
+                            mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'gen')
+                    d_iter=0
                 if (iter + epoch * epoch_len) % print_every == 0:
                     writer.add_scalar('Train/SegmentationLoss', segmentation_loss, iter + epoch * epoch_len)
                     if self._disc is None:
