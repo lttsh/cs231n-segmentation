@@ -179,7 +179,6 @@ class SegNet16(nn.Module):
         self.dec3 = _DecoderBlock(512, 128, 2) # Dec3
         self.dec2 = _DecoderBlock(256, 64, 2)# Dec2
         self.dec1 = _DecoderBlock(128, num_classes, 2) #Dec 1
-        self.out = nn.Tanh()
         initialize_weights(self.dec5, self.dec4, self.dec3, self.dec2, self.dec1)
 
     def forward(self, x):
@@ -193,5 +192,4 @@ class SegNet16(nn.Module):
         dec3 = self.dec3(torch.cat([enc3, dec4], 1))
         dec2 = self.dec2(torch.cat([enc2, dec3], 1))
         dec1 = self.dec1(torch.cat([enc1, dec2], 1))
-        dec1 = self.out(dec1)
         return dec1
