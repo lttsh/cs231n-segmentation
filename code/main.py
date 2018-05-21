@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 from train import Trainer
-from generator import *
+from generator import get_generator
 from discriminator import GAN
 from dataset import CocoStuffDataSet
 import os, argparse, datetime, json
@@ -42,6 +42,8 @@ if __name__ == "__main__":
                         help='beta1 parameter to use for Adam optimizers')
     parser.add_argument('-d', '--d_iters', default=5, type=int,
                         help='Number of training iterations for discriminator within one loop')
+    parser.add_argument('--generator_name', default='SegNetSmall', type=str,
+                        help='Name of generator model to run')
 
     args = parser.parse_args()
     batch_size = args.batch_size
@@ -71,10 +73,7 @@ if __name__ == "__main__":
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
 
     discriminator = None
-    # generator = VerySmallNet(NUM_CLASSES)
-    # generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
-    generator = SegNet16(NUM_CLASSES, pretrained=True)
-    # generator = VerySmallNet(NUM_CLASSES)
+    generator = get_generator(args.generator_name, NUM_CLASSES)
     if args.use_gan:
         print ("Use GAN")
         discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
