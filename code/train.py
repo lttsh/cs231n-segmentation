@@ -147,8 +147,9 @@ class Trainer():
                         writer.add_scalar('Train/GeneratorLoss', g_loss, iter + epoch * epoch_len)
                         writer.add_scalar('Train/DiscriminatorLoss', d_loss, iter + epoch * epoch_len)
                         writer.add_scalar('Train/GANLoss', self.gan_reg * (d_loss + g_loss), iter + epoch * epoch_len)
+                        writer.add_scalar('Train/TotalLoss', self.gan_reg * (d_loss + g_loss) + segmentation_loss, iter + epoch * epoch_len)
                         print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))
-                        print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * d_loss + g_loss + segmentation_loss))
+                        print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * (d_loss + g_loss) + segmentation_loss))
                 if eval_every > 0 and (iter + epoch * epoch_len) % eval_every == 0:
                     val_acc = self.evaluate_pixel_accuracy(self._val_loader)
                     print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
