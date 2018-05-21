@@ -6,9 +6,7 @@ from discriminator import GAN
 from dataset import CocoStuffDataSet
 import os, argparse, datetime, json
 
-NUM_CLASSES = 11
 SAVE_DIR = "../checkpoints" # Assuming this is launched from code/ subfolder.
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
@@ -63,8 +61,15 @@ if __name__ == "__main__":
             json.dump(vars(args), outfile, sort_keys=True, indent=4)
 
     HEIGHT, WIDTH = args.size, args.size
+    val_dataset = CocoStuffDataSet(mode='val', height=HEIGHT, width=WIDTH)
+    train_dataset = CocoStuffDataSet(mode='train', height=HEIGHT, width=WIDTH)
+    val_loader = DataLoader(val_dataset, args.batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True)
+    NUM_CLASSES = train_dataset.numClasses
+    print ("Number of classes: {}".format(NUM_CLASSES))
     image_shape = (3, HEIGHT, WIDTH)
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
+
     discriminator = None
     # generator = VerySmallNet(NUM_CLASSES)
     # generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
@@ -74,10 +79,6 @@ if __name__ == "__main__":
         print ("Use GAN")
         discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
 
-    val_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='val', height=HEIGHT, width=WIDTH),
-                                args.batch_size, shuffle=False)
-    train_loader = DataLoader(CocoStuffDataSet(supercategories=['animal'], mode='train', height=HEIGHT, width=WIDTH),
-                                args.batch_size, shuffle=True)
     trainer = Trainer(generator, discriminator, train_loader, val_loader, \
                     gan_reg=args.gan_reg, d_iters=args.d_iters, \
                     weight_clip= args.weight_clip, disc_lr=args.disc_lr, gen_lr=args.gen_lr, beta1=args.beta1,\
