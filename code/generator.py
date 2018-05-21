@@ -4,6 +4,14 @@ import torch.nn.functional as F
 import torchvision.models as models
 from utils import *
 
+def get_generator(generator_name, num_classes):
+    name_to_model = {
+        'VerySmallNet':VerySmallNet,
+        'SegNetSmaller':SegNetSmaller,
+        'SegNetSmall':SegNetSmall,
+        'SegNet16':SegNet16
+    }
+    return name_to_model[generator_name](num_classes)
 
 class _DecoderBlock(nn.Module):
     """
