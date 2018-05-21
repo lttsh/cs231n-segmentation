@@ -51,7 +51,9 @@ class CocoStuffDataSet(dset.CocoDetection):
             for id in self.catIds:
                 self.ids += self.coco.getImgIds(catIds=[id])
                 self.ids = list(set(self.ids))
-
+        else:
+            self.catIds = self.coco.getCatIds()
+            print (self.catIds)
         self.numClasses = len(self.catIds) + 1
         print('Loaded %d samples: ' % len(self))
 
@@ -129,7 +131,7 @@ class CocoStuffDataSet(dset.CocoDetection):
 
 if __name__ == "__main__":
     ## Display
-    cocostuff = CocoStuffDataSet(supercategories=['animal'])
+    cocostuff = CocoStuffDataSet()
     for _ in range(10):
         cocostuff.display(np.random.randint(low=0, high=len(cocostuff)))
     cocostuff.gather_stats()
