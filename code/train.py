@@ -11,7 +11,7 @@ from tensorboardX import SummaryWriter
 
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
-            gan_reg=1.0, d_iters=5, weight_clip=1e-2, disc_lr=1e-5, gen_lr=1e-2,\
+            gan_reg=1.0, d_iters=5, weight_clip=1e-2, disc_lr=1e-5, gen_lr=1e-2, beta1=0.5,\
             experiment_dir='./', resume=False):
         """
         Training class for a specified model
@@ -29,7 +29,7 @@ class Trainer():
 
         if discriminator is not None:
             self._disc = discriminator.to(self.device)
-            self._discoptimizer = optim.Adam(self._disc.parameters(), lr=disc_lr) # Discriminator optimizer (needs to be separate)
+            self._discoptimizer = optim.Adam(self._disc.parameters(), lr=disc_lr, betas=(beta1, 0.999)) # Discriminator optimizer (needs to be separate)
             self._BCEcriterion = nn.BCEWithLogitsLoss()
         else:
             print ("Runing network without GAN loss.")
@@ -41,7 +41,7 @@ class Trainer():
         self._val_loader = val_loader
 
         self._MCEcriterion = nn.CrossEntropyLoss() # Criterion for segmentation loss
-        self._genoptimizer = optim.Adam(self._gen.parameters(), lr=gen_lr) # Generator optimizer
+        self._genoptimizer = optim.Adam(self._gen.parameters(), lr=gen_lr, betas=(beta1, 0.999)) # Generator optimizer
 
         self.gan_reg = gan_reg
         self.d_iters = d_iters

@@ -44,7 +44,7 @@ def initialize_weights(*models):
                 module.bias.data.zero_()
 
 total_saved = 0
-def visualize_mask(data, gt, pred):    
+def visualize_mask(data, gt, pred, save=False):    
     num_classes = 11
     global total_saved
     for i in range(len(data)):
@@ -75,7 +75,8 @@ def visualize_mask(data, gt, pred):
         plt.imshow(pred_mask, alpha=0.8, cmap=cmap, norm=norm)
         plt.axis('off')
         plt.title('predicted mask')
-        plt.savefig('saved_{}.png'.format(total_saved))
+        if save:
+          plt.savefig('saved_{}.png'.format(total_saved))
         plt.show()
 
 

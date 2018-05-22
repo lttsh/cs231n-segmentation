@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 from train import Trainer
-from generator import *
+from generator import get_generator
 from discriminator import GAN
 from dataset import CocoStuffDataSet
 import os, argparse, datetime, json
@@ -30,16 +30,20 @@ if __name__ == "__main__":
                         help='name of experiment used for saving loading checkpoints')
     # GAN Hyperparameters
     parser.add_argument('--use_gan', default=1, type=int)
-    parser.add_argument('--disc_lr', default=1e-2, type=float,
+    parser.add_argument('--disc_lr', default=1e-5, type=float,
                         help='Learning rate for discriminator')
-    parser.add_argument('--gen_lr', default=0.1, type=float,
+    parser.add_argument('--gen_lr', default=1e-3, type=float,
                         help='Learning rate for generator')
     parser.add_argument('--weight_clip', default=0.01, type=float,
                         help='Weight clipping for W-GAN loss')
-    parser.add_argument('--gan_reg', default=0.1, type=float,
+    parser.add_argument('--gan_reg', default=1e-2, type=float,
                         help='Regularization strength from gan')
+    parser.add_argument('--beta1', default=0.5, type=float,
+                        help='beta1 parameter to use for Adam optimizers')
     parser.add_argument('-d', '--d_iters', default=5, type=int,
                         help='Number of training iterations for discriminator within one loop')
+    parser.add_argument('--generator_name', default='SegNetSmall', type=str,
+                        help='Name of generator model to run')
 
     args = parser.parse_args()
     batch_size = args.batch_size
@@ -67,17 +71,16 @@ if __name__ == "__main__":
     print ("Number of classes: {}".format(NUM_CLASSES))
     image_shape = (3, HEIGHT, WIDTH)
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
-    generator = VerySmallNet(NUM_CLASSES)
+
     discriminator = None
-    # generator = SegNetSmaller(NUM_CLASSES, pretrained=True)
-    # generator = SegNet16(NUM_CLASSES, pretrained=True)
+    generator = get_generator(args.generator_name, NUM_CLASSES)
     if args.use_gan:
         print ("Use GAN")
         discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
 
     trainer = Trainer(generator, discriminator, train_loader, val_loader, \
                     gan_reg=args.gan_reg, d_iters=args.d_iters, \
-                    weight_clip= args.weight_clip, disc_lr=args.disc_lr, gen_lr=args.gen_lr, \
+                    weight_clip= args.weight_clip, disc_lr=args.disc_lr, gen_lr=args.gen_lr, beta1=args.beta1,\
                     experiment_dir=experiment_dir, resume=args.load_model)
 
     if args.mode == "train":

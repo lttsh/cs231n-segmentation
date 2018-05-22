@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torchvision.models as models
 from utils import *
 
+
 class _EncoderBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
         """
@@ -20,6 +21,7 @@ class _EncoderBlock(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+
 
 class GAN(nn.Module):
     def __init__(self, num_classes, masks_shape, images_shape):
