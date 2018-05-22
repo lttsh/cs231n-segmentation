@@ -128,7 +128,7 @@ class Trainer():
         d_iter = 0
         if total_iters is None:
             total_iters = iter + epoch_len * self.start_epoch
-            print ("Total_iters starts at {}".format(total_iters)
+            print ("Total_iters starts at {}".format(total_iters))
         for epoch in range(self.start_epoch, num_epochs):
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, mini_batch_labels, mini_batch_labels_flat in self._train_loader:
