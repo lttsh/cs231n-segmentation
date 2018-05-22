@@ -13,16 +13,16 @@ if __name__ == "__main__":
     parser.add_argument('--mode', default='train', type=str,
                         help='Mode train/eval')
     # Training parameters
-    parser.add_argument('--epochs', default=90, type=int, metavar='N',
+    parser.add_argument('--epochs', default=20, type=int, metavar='N',
                         help='number of total epochs to run')
     parser.add_argument('-b', '--batch_size', default=8, type=int,
                         metavar='N', help='mini-batch size (default: 8)')
     parser.add_argument('-s', '--size', default=128, type=int,
                         help='size of images (default:128)')
     # Utility parameters
-    parser.add_argument('--print_every', '-p', default=10, type=int,
+    parser.add_argument('--print_every', '-p', default=100, type=int,
                         metavar='N', help='print frequency (default: 10)')
-    parser.add_argument('--eval_every', '-e', default=200, type=int,
+    parser.add_argument('--eval_every', '-e', default=500, type=int,
                         metavar='N', help='print frequency (default: 10)')
     parser.add_argument('--load_model', type=bool, default=False,
                         help='load model from saved checkpoint ')
@@ -38,7 +38,7 @@ if __name__ == "__main__":
                         help='Weight clipping for W-GAN loss')
     parser.add_argument('--gan_reg', default=1e-2, type=float,
                         help='Regularization strength from gan')
-    parser.add_argument('--beta1', default=0.5, type=float,
+    parser.add_argument('--beta1', default=0.9, type=float,
                         help='beta1 parameter to use for Adam optimizers')
     parser.add_argument('-d', '--d_iters', default=5, type=int,
                         help='Number of training iterations for discriminator within one loop')
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     HEIGHT, WIDTH = args.size, args.size
     val_dataset = CocoStuffDataSet(mode='val', height=HEIGHT, width=WIDTH)
     train_dataset = CocoStuffDataSet(mode='train', height=HEIGHT, width=WIDTH)
-    val_loader = DataLoader(val_dataset, args.batch_size, shuffle=False)
+    val_loader = DataLoader(val_dataset, args.batch_size, shuffle=True)
     train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True)
     NUM_CLASSES = train_dataset.numClasses
     print ("Number of classes: {}".format(NUM_CLASSES))

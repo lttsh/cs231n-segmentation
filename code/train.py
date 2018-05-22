@@ -107,7 +107,7 @@ class Trainer():
             self._genoptimizer.step()
             return g_loss, segmentation_loss
 
-    def train(self, num_epochs, print_every=100, eval_every=200, eval_debug=False):
+    def train(self, num_epochs, print_every=100, eval_every=500, eval_debug=False):
         """
         Trains the model for a specified number of epochs
         Args:
@@ -126,6 +126,9 @@ class Trainer():
         g_loss=0
         segmentation_loss=0
         d_iter = 0
+        if total_iters is None:
+            total_iters = iter + epoch_len * self.start_epoch
+            print ("Total_iters starts at {}".format(total_iters)
         for epoch in range(self.start_epoch, num_epochs):
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, mini_batch_labels, mini_batch_labels_flat in self._train_loader:
@@ -139,27 +142,24 @@ class Trainer():
                     g_loss, segmentation_loss = self._train_batch(
                             mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'gen')
                     d_iter=0
+                writer.add_scalar('Train/SegmentationLoss', segmentation_loss, total_iters)
+                if self._disc is not None:
+                    writer.add_scalar('Train/GeneratorLoss', g_loss, total_iters)
+                    writer.add_scalar('Train/DiscriminatorLoss', d_loss, total_iters)
+                    writer.add_scalar('Train/GanLoss', d_loss + g_loss, total_iters)
+                    writer.add_scalar('Train/TotalLoss', self.gan_reg * (d_loss + g_loss) + segmentation_loss, total_iters)
                 if total_iters % print_every == 0:
-                    writer.add_scalar('Train/SegmentationLoss', segmentation_loss, total_iters)
                     if self._disc is None:
                         print ('Loss at iteration {}/{}: {}'.format(iter, epoch_len - 1, segmentation_loss))
                     else:
-                        writer.add_scalar('Train/GeneratorLoss', g_loss, total_iters)
-                        writer.add_scalar('Train/DiscriminatorLoss', d_loss, total_iters)
-                        writer.add_scalar('Train/GanLoss', d_loss + g_loss, total_iters)
-                        writer.add_scalar('Train/TotalLoss', self.gan_reg * (d_loss + g_loss) + segmentation_loss, total_iters)
                         print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))
                         print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * (d_loss + g_loss) + segmentation_loss))
                 if eval_every > 0 and total_iters % eval_every == 0:
-                    # val_acc = self.evaluate_pixel_accuracy(self._val_loader)
-                    # print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
-                    # train_mIOU = self.evaluate_meanIOU(self._train_loader, eval_debug)
                     val_mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
                     if self.best_mIOU < val_mIOU:
                         self.best_mIOU = val_mIOU
                     self.save_model(iter, epoch, self.best_mIOU, self.best_mIOU == val_mIOU)
                     writer.add_scalar('Val/MeanIOU', val_mIOU, total_iters)
-                    # writer.add_scalar('Val/PixelAcc', train_acc, iter + epoch * epoch_len)
                     print("Validation Mean IOU at iteration {}/{}: {}".format(iter, epoch_len - 1, val_mIOU))
                 iter += 1
                 total_iters += 1
@@ -191,7 +191,7 @@ class Trainer():
             print("=> loading checkpoint '{}'".format(self.save_path))
             checkpoint = torch.load(self.save_path)
             self.start_iter = checkpoint['iter']
-            self.start_total_iters = checkpoint['total_iters']
+            self.start_total_iters = checkpoint.get('total_iters', None)
             self.start_epoch = checkpoint['epoch']
             self.best_mIOU = checkpoint['best_mIOU']
             self._gen.load_state_dict(checkpoint['gen_dict'])
@@ -230,7 +230,7 @@ class Trainer():
         pix_acc = self.evaluate_pixel_accuracy(loader)
         return 1.0 / loader.dataset.numClasses * pix_acc
 
-    def evaluate_meanIOU(self, loader, debug=False, ignore_background=False):
+    def evaluate_meanIOU(self, loader, debug=False, ignore_background=True):
         print ("Evaluating mean IOU")
         self._gen.eval()
         if self._disc is not None:
@@ -239,6 +239,7 @@ class Trainer():
         total = 0
         mIOU = 0.0
         iter = 0
+        max_batches = 10 
         for data, mask_gt, gt_visual in loader:
             data = data.to(self.device)
             batch_size = data.size()[0]
@@ -262,6 +263,8 @@ class Trainer():
             mIOU +=  torch.sum(fraction).item()
 
             iter += 1
+            if iter == max_batches:
+                break
             if debug:
                 print ("Processed %d batches out of %d, accumulated mIOU : %f" % (iter, len(loader), mIOU))
         return 1.0 / total * mIOU
