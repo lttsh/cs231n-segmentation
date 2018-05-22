@@ -46,6 +46,7 @@ class Trainer():
         self.gan_reg = gan_reg
         self.d_iters = d_iters
         self.start_iter = 0
+        self.start_total_iters = 0
         self.start_epoch = 0
         self.best_mIOU = 0
         self.weight_clip = weight_clip
@@ -116,6 +117,7 @@ class Trainer():
         """
         writer = SummaryWriter(self.experiment_dir)
 
+        total_iters = self.start_total_iters
         iter = self.start_iter
         batch_size = self._train_loader.batch_size
         num_samples = len(self._train_loader.dataset)
@@ -137,18 +139,18 @@ class Trainer():
                     g_loss, segmentation_loss = self._train_batch(
                             mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'gen')
                     d_iter=0
-                if (iter + epoch * epoch_len) % print_every == 0:
-                    writer.add_scalar('Train/SegmentationLoss', segmentation_loss, iter + epoch * epoch_len)
+                if total_iters % print_every == 0:
+                    writer.add_scalar('Train/SegmentationLoss', segmentation_loss, total_iters)
                     if self._disc is None:
                         print ('Loss at iteration {}/{}: {}'.format(iter, epoch_len - 1, segmentation_loss))
                     else:
-                        writer.add_scalar('Train/GeneratorLoss', g_loss, iter + epoch * epoch_len)
-                        writer.add_scalar('Train/DiscriminatorLoss', d_loss, iter + epoch * epoch_len)
-                        writer.add_scalar('Train/GanLoss', d_loss + g_loss, iter + epoch * epoch_len)
-                        writer.add_scalar('Train/TotalLoss', self.gan_reg * (d_loss + g_loss) + segmentation_loss, iter + epoch * epoch_len)
+                        writer.add_scalar('Train/GeneratorLoss', g_loss, total_iters)
+                        writer.add_scalar('Train/DiscriminatorLoss', d_loss, total_iters)
+                        writer.add_scalar('Train/GanLoss', d_loss + g_loss, total_iters)
+                        writer.add_scalar('Train/TotalLoss', self.gan_reg * (d_loss + g_loss) + segmentation_loss, total_iters)
                         print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))
                         print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * (d_loss + g_loss) + segmentation_loss))
-                if eval_every > 0 and (iter + epoch * epoch_len) % eval_every == 0:
+                if eval_every > 0 and total_iters % eval_every == 0:
                     # val_acc = self.evaluate_pixel_accuracy(self._val_loader)
                     # print ("Mean Pixel accuracy at iteration {}/{}: {}".format(iter, epoch_len, val_acc))
                     # train_mIOU = self.evaluate_meanIOU(self._train_loader, eval_debug)
@@ -156,10 +158,11 @@ class Trainer():
                     if self.best_mIOU < val_mIOU:
                         self.best_mIOU = val_mIOU
                     self.save_model(iter, epoch, self.best_mIOU, self.best_mIOU == val_mIOU)
-                    writer.add_scalar('Val/MeanIOU', val_mIOU, iter + epoch * epoch_len)
+                    writer.add_scalar('Val/MeanIOU', val_mIOU, total_iters)
                     # writer.add_scalar('Val/PixelAcc', train_acc, iter + epoch * epoch_len)
                     print("Validation Mean IOU at iteration {}/{}: {}".format(iter, epoch_len - 1, val_mIOU))
                 iter += 1
+                total_iters += 1
             iter = 0
 
 
@@ -167,6 +170,7 @@ class Trainer():
         save_dict = {
             'epoch': epoch,
             'iter': iter + 1,
+            'total_iters': total_iters + 1,
             'gen_dict': self._gen.state_dict(),
             'best_mIOU': mIOU,
             'gen_opt' : self._genoptimizer.state_dict()
@@ -187,6 +191,7 @@ class Trainer():
             print("=> loading checkpoint '{}'".format(self.save_path))
             checkpoint = torch.load(self.save_path)
             self.start_iter = checkpoint['iter']
+            self.start_total_iters = checkpoint['total_iters']
             self.start_epoch = checkpoint['epoch']
             self.best_mIOU = checkpoint['best_mIOU']
             self._gen.load_state_dict(checkpoint['gen_dict'])
