@@ -12,7 +12,7 @@ from tensorboardX import SummaryWriter
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
             gan_reg=1.0, d_iters=5, weight_clip=1e-2, disc_lr=1e-5, gen_lr=1e-2, beta1=0.5,\
-            experiment_dir='./', resume=False):
+            train_gan=False, experiment_dir='./', resume=False):
         """
         Training class for a specified model
         Args:
@@ -26,8 +26,9 @@ class Trainer():
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print ("Using device %s" % self.device)
         self._gen = generator.to(self.device)
-
-        if discriminator is not None:
+        self.train_gan = train_gan
+        if discriminator is not None and self.train_gan:
+            print ("Training GAN")
             self._disc = discriminator.to(self.device)
             self._discoptimizer = optim.Adam(self._disc.parameters(), lr=disc_lr, betas=(beta1, 0.999)) # Discriminator optimizer (needs to be separate)
             self._BCEcriterion = nn.BCEWithLogitsLoss()
@@ -40,7 +41,7 @@ class Trainer():
         self._train_loader = train_loader
         self._val_loader = val_loader
 
-        self._MCEcriterion = nn.CrossEntropyLoss(self_train_loader.weights) # Criterion for segmentation loss
+        self._MCEcriterion = nn.CrossEntropyLoss(self._train_loader.dataset.weights) # Criterion for segmentation loss
         self._genoptimizer = optim.Adam(self._gen.parameters(), lr=gen_lr, betas=(beta1, 0.999)) # Generator optimizer
         self.gan_reg = gan_reg
         self.d_iters = d_iters
@@ -55,7 +56,7 @@ class Trainer():
         if resume:
             self.load_model()
 
-    def _train_batch(self, mini_batch_data, mini_batch_labels, mini_batch_labels_flat, mode='disc'):
+    def _train_batch(self, mini_batch_data, mini_batch_labels, mini_batch_labels_flat, mode):
         """
         Performs one gradient step on a minibatch of data
         Args:
@@ -78,7 +79,7 @@ class Trainer():
         converted_mask = convert_to_mask(gen_out).to(self.device)
         false_labels = torch.zeros((mini_batch_data.size()[0], 1)).to(self.device)
         true_labels = torch.ones((mini_batch_data.size()[0], 1)).to(self.device)
-        if mode == 'disc' and self._disc is not None:
+        if mode == 'disc' and self._disc is not None and self.train_gan:
             d_loss = 0
             self._discoptimizer.zero_grad()
             scores_false = self._disc(mini_batch_data, converted_mask) # (B,)
@@ -95,7 +96,7 @@ class Trainer():
             self._genoptimizer.zero_grad()
             g_loss = 0
             # GAN part
-            if self._disc is not None:
+            if self._disc is not None and self.train_gan:
                 scores_false = self._disc(mini_batch_data, converted_mask)
                 g_loss = self._BCEcriterion(scores_false, true_labels)
                 # g_loss = -torch.mean(scores_false)
@@ -131,7 +132,7 @@ class Trainer():
         for epoch in range(self.start_epoch, num_epochs):
             print ("Starting epoch {}".format(epoch))
             for mini_batch_data, mini_batch_labels, mini_batch_labels_flat in self._train_loader:
-                if self._disc is not None and d_iter < self.d_iters:
+                if self._disc is not None and self.train_gan and d_iter < self.d_iters:
                     self._disc.train()
                     d_loss, _ = self._train_batch(
                             mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'disc')
@@ -142,13 +143,13 @@ class Trainer():
                             mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'gen')
                     d_iter=0
                 writer.add_scalar('Train/SegmentationLoss', segmentation_loss, total_iters)
-                if self._disc is not None:
+                if self._disc is not None and self.train_gan:
                     writer.add_scalar('Train/GeneratorLoss', g_loss, total_iters)
                     writer.add_scalar('Train/DiscriminatorLoss', d_loss, total_iters)
                     writer.add_scalar('Train/GanLoss', d_loss + g_loss, total_iters)
                     writer.add_scalar('Train/TotalLoss', self.gan_reg * (d_loss + g_loss) + segmentation_loss, total_iters)
                 if total_iters % print_every == 0:
-                    if self._disc is None:
+                    if self._disc is None or not self.train_gan:
                         print ('Loss at iteration {}/{}: {}'.format(iter, epoch_len - 1, segmentation_loss))
                     else:
                         print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))

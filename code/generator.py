@@ -129,7 +129,7 @@ class SegNetSmall(nn.Module):
         self.dec5 = nn.Sequential(
             *([nn.ConvTranspose2d(512, 512, kernel_size=2, stride=2)] +
               [nn.Conv2d(512, 512, kernel_size=3, padding=1),
-               nn.LeakyRelu()] * 2)
+               nn.LeakyReLU()] * 2)
         )
         self.dec4 = _DecoderBlock(1024, 256, 2)
         self.dec3 = _DecoderBlock(512, 128, 2)
