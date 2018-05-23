@@ -29,7 +29,7 @@ if __name__ == "__main__":
     parser.add_argument('--experiment_name', '-n', type=str, default=None,
                         help='name of experiment used for saving loading checkpoints')
     # GAN Hyperparameters
-    parser.add_argument('--train_gan', default=False, type=bool,
+    parser.add_argument('--train_gan', type=bool, default=False,
                         help='decide whether to train GAN')
     parser.add_argument('--disc_lr', default=1e-5, type=float,
                         help='Learning rate for discriminator')

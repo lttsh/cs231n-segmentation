@@ -41,7 +41,7 @@ class Trainer():
         self._train_loader = train_loader
         self._val_loader = val_loader
 
-        self._MCEcriterion = nn.CrossEntropyLoss(self._train_loader.dataset.weights) # Criterion for segmentation loss
+        self._MCEcriterion = nn.CrossEntropyLoss(self._train_loader.dataset.weights.to(self.device)) # Criterion for segmentation loss
         self._genoptimizer = optim.Adam(self._gen.parameters(), lr=gen_lr, betas=(beta1, 0.999)) # Generator optimizer
         self.gan_reg = gan_reg
         self.d_iters = d_iters
@@ -158,7 +158,7 @@ class Trainer():
                     val_mIOU = self.evaluate_meanIOU(self._val_loader, eval_debug)
                     if self.best_mIOU < val_mIOU:
                         self.best_mIOU = val_mIOU
-                    self.save_model(iter, epoch, self.best_mIOU, self.best_mIOU == val_mIOU)
+                    self.save_model(iter, total_iters, epoch, self.best_mIOU, self.best_mIOU == val_mIOU)
                     writer.add_scalar('Val/MeanIOU', val_mIOU, total_iters)
                     print("Validation Mean IOU at iteration {}/{}: {}".format(iter, epoch_len - 1, val_mIOU))
                 iter += 1
@@ -166,7 +166,7 @@ class Trainer():
             iter = 0
 
 
-    def save_model(self, iter, epoch, mIOU, is_best):
+    def save_model(self, iter, total_iters, epoch, mIOU, is_best):
         save_dict = {
             'epoch': epoch,
             'iter': iter + 1,
