@@ -53,10 +53,19 @@ class CocoStuffDataSet(dset.CocoDetection):
                 self.ids = list(set(self.ids))
         else:
             self.catIds = self.coco.getCatIds()
-            print (self.catIds)
         self.numClasses = len(self.catIds) + 1
         print('Loaded %d samples: ' % len(self))
 
+        weights = np.zeros(self.numClasses)
+        for idx, catId in enumerate(self.catIds):
+            ids = self.coco.getImgIds(catIds=catId)
+            weight = 1.0 / float(len(ids) + 1e-8)
+            weights[idx] = weight
+        weights[-1] = 1.0 / float(len(self) + 1e-8)
+        weights /= np.sum(weights)
+        self.weights = torch.Tensor(weights)
+        print (self.weights)
+        
     def __getitem__(self, index):
         """
         Args:
@@ -124,14 +133,13 @@ class CocoStuffDataSet(dset.CocoDetection):
         cmap = discrete_cmap(self.numClasses, 'Paired')
         norm = colors.NoNorm(vmin=0, vmax=self.numClasses)
         plt.imshow(masks, alpha=0.8, cmap=cmap, norm=norm)
-        # plt.imshow(masks[-1], alpha=1.0)
         plt.axis('off')
         plt.title('annotated image')
         plt.show()
 
 if __name__ == "__main__":
     ## Display
-    cocostuff = CocoStuffDataSet()
+    cocostuff = CocoStuffDataSet(supercategories=['animal'])
     for _ in range(10):
         cocostuff.display(np.random.randint(low=0, high=len(cocostuff)))
     cocostuff.gather_stats()

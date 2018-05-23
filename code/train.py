@@ -40,9 +40,8 @@ class Trainer():
         self._train_loader = train_loader
         self._val_loader = val_loader
 
-        self._MCEcriterion = nn.CrossEntropyLoss() # Criterion for segmentation loss
+        self._MCEcriterion = nn.CrossEntropyLoss(self_train_loader.weights) # Criterion for segmentation loss
         self._genoptimizer = optim.Adam(self._gen.parameters(), lr=gen_lr, betas=(beta1, 0.999)) # Generator optimizer
-
         self.gan_reg = gan_reg
         self.d_iters = d_iters
         self.start_iter = 0
@@ -89,8 +88,8 @@ class Trainer():
             d_loss.backward()
             self._discoptimizer.step()
             # W-GAN weight clipping
-            for p in self._disc.parameters():
-                p.data.clamp_(-self.weight_clip, self.weight_clip)
+            # for p in self._disc.parameters():
+            #     p.data.clamp_(-self.weight_clip, self.weight_clip)
             return d_loss, None
         if mode == 'gen':
             self._genoptimizer.zero_grad()
@@ -239,7 +238,7 @@ class Trainer():
         total = 0
         mIOU = 0.0
         iter = 0
-        max_batches = 10 
+        max_batches = 10
         for data, mask_gt, gt_visual in loader:
             data = data.to(self.device)
             batch_size = data.size()[0]
