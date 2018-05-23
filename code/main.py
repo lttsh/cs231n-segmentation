@@ -46,7 +46,6 @@ if __name__ == "__main__":
                         help='Name of generator model to run')
 
     args = parser.parse_args()
-    batch_size = args.batch_size
 
     # Create experiment specific directory
     if args.experiment_name is not None:
@@ -61,6 +60,15 @@ if __name__ == "__main__":
     if not args.load_model:
         with open(experiment_dir+'/args.json', 'w') as outfile:
             json.dump(vars(args), outfile, sort_keys=True, indent=4)
+    else:
+        with open(experiment_dir+'/args.json', 'r') as infile:
+            args_dict = json.load(infile)
+            args_dict['load_model'] = True
+            args_dict['experiment_name'] = args.experiment_name
+            current_dict = vars(args)
+            for (key, value) in args_dict.items():
+                current_dict[key] = value
+            args = argparse.Namespace(**current_dict)
 
     HEIGHT, WIDTH = args.size, args.size
     val_dataset = CocoStuffDataSet(mode='val', height=HEIGHT, width=WIDTH)
