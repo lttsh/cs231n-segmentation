@@ -182,6 +182,8 @@ def style_transfer(content_image, style_image, content_mask, image_size, style_s
     if mask_layer:
         feature_masks = get_soft_masks(content_mask, cnn, style_layers)
         # for m in feature_masks:
+        #     if m is None:
+        #         continue
         #     m = m.detach().numpy().reshape(*(m.shape)[-2:])
         #     plt.axis('off')
         #     plt.imshow(m)
