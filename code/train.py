@@ -197,9 +197,10 @@ class Trainer():
             self._gen.load_state_dict(checkpoint['gen_dict'])
             self._genoptimizer.load_state_dict(checkpoint['gen_opt'])
             if self._disc is not None:
-                self._disc.load_state_dict(checkpoint['disc_dict'])
-                self._discoptimizer.load_state_dict(checkpoint['disc_opt'])
-                self.gan_reg = checkpoint['gan_reg']
+                if 'disc_dict' in checkpoint:
+                  self._disc.load_state_dict(checkpoint['disc_dict'])
+                  self._discoptimizer.load_state_dict(checkpoint['disc_opt'])
+                  self.gan_reg = checkpoint['gan_reg']
 
             print("=> loaded checkpoint '{}' (iter {})".format(self.save_path, checkpoint['iter']))
         else:
