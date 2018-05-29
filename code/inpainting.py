@@ -39,3 +39,37 @@ class PartialConv2d(nn.Module):
         new_mask = self.maxpool2d(m)
         new_features = self.conv2d(torch.mul(x, m)) / (msum + 1e-12) + self.bias
         return (new_features, new_mask)
+
+
+class _PartialConvEncoderBlock(nn.Module):
+    """
+    Partiall CNN block for the encoder.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, padding):
+        """
+        Args:
+            in_channels: (int) number of input channels to this block
+            out_channels: (int) number of out_channels from this block
+            num_conv_layers: (int) number of total Conv2d filters. Must be >= 2
+        """
+        super().__init__()
+        self.partialConv = PartialConv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding),
+        self.nonlinearity = nn.LeakyReLU(alpha=0.2)
+    def forward(self, x, m):
+        """
+        Forward pass for the decoder block
+        Args:
+            x: (torch.Tensor) input tensor to be encoded by block
+            m; (torch.Tensor) input mask for the tensor
+        Return:
+            (torch.Tensor) result of decoding input tensor
+            (torch.Tensor) re
+        """
+        x_, m_ = self.partialConv(x, m)
+        x_ = self.nonlinearity(x_)
+        return (x_, m_)
+
+class InpaintingEncoder(nn.Module):
+    def _init__(self):
+        super().__init__()
+        # self.enc1 = _PartialConvEncoderBlock(3, )
