@@ -10,10 +10,11 @@ SAVE_DIR = "../checkpoints" # Assuming this is launched from code/ subfolder.
 
 def by_pixel_weights(dataloader, savename):
     num_classes = dataloader.dataset.numClasses
-    counts = torch.zeros(num_classes).to(self.device)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    counts = torch.zeros(num_classes).float().to(device)
     for _, masks, _ in dataloader:
-        masks = masks.to(self.device)
-        counts += (masks.view((C, -1))).sum(dim=1)
+        masks = masks.float().to(device)
+        counts += (masks.view((num_classes, -1))).sum(dim=1)
     weights = counts.reciprocal()   
     weights /= weights.sum()
 
@@ -95,8 +96,9 @@ if __name__ == "__main__":
     image_shape = (3, HEIGHT, WIDTH)
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
 
-    # by_pixel_weights(train_loader, savename='all_train_pixel_weights.pt')
-    
+    by_pixel_weights(train_loader, savename='all_train_pixel_weights.pt')
+    print("Saved") 
+    assert True == False
     discriminator = None
     generator = get_generator(args.generator_name, NUM_CLASSES)
     discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
