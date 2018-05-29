@@ -8,6 +8,19 @@ import os, argparse, datetime, json
 
 SAVE_DIR = "../checkpoints" # Assuming this is launched from code/ subfolder.
 
+def by_pixel_weights(dataloader, savename):
+    num_classes = dataloader.dataset.numClasses
+    counts = torch.zeros(num_classes).to(self.device)
+    for _, masks, _ in dataloader:
+        masks = masks.to(self.device)
+        counts += (masks.view((C, -1))).sum(dim=1)
+    weights = counts.reciprocal()   
+    weights /= weights.sum()
+
+    print("Saving weights to ", savename)
+    torch.save(weights, savename)
+    return weights
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
     parser.add_argument('--mode', default='train', type=str,
@@ -82,6 +95,8 @@ if __name__ == "__main__":
     image_shape = (3, HEIGHT, WIDTH)
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
 
+    # by_pixel_weights(train_loader, savename='all_train_pixel_weights.pt')
+    
     discriminator = None
     generator = get_generator(args.generator_name, NUM_CLASSES)
     discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
