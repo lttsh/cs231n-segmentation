@@ -14,12 +14,16 @@ class PartialConv2d(nn.Module):
             padding,
             dilation,
             groups,
-            bias)
-        self.maxpool2d= nn.MaxPool2d(
+            bias=False)
+        self.bias = nn.Parameter(
+                data=torch.zeros(out_channels, dtype=torch.float32),
+                requires_grad=True)
+        self.maxpool2d = nn.MaxPool2d(
             kernel_size,
             stride=stride,
             padding=padding,
             dilation=dilation)
+        self.sumpool2d = nn.LPPool1d(1, kernel_size, stride=stride)
 
     def forward(self, x, m):
         """
@@ -31,4 +35,7 @@ class PartialConv2d(nn.Module):
             (torch.Tensor) result of partial convolution
             (torch.Tensor) new mask tensor (same dimensions as result)
         """
-        return (self.conv2d(torch.mul(x, m)), self.maxpool2d(m))
+        msum = self.sumpool2d(m)
+        new_mask = self.maxpool2d(m)
+        new_features = self.conv2d(torch.mul(x, m)) / (msum + 1e-12) + self.bias
+        return (new_features, new_mask)
