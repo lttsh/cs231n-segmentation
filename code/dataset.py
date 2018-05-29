@@ -64,8 +64,8 @@ class CocoStuffDataSet(dset.CocoDetection):
         weights[-1] = 1.0 / float(len(self) + 1e-8)
         weights /= np.sum(weights)
         self.weights = torch.Tensor(weights)
-        print (self.weights)
-        
+        # print (self.weights)
+
     def __getitem__(self, index):
         """
         Args:
@@ -139,7 +139,15 @@ class CocoStuffDataSet(dset.CocoDetection):
 
 if __name__ == "__main__":
     ## Display
-    cocostuff = CocoStuffDataSet(supercategories=['animal'])
-    for _ in range(10):
-        cocostuff.display(np.random.randint(low=0, high=len(cocostuff)))
-    cocostuff.gather_stats()
+    # cocostuff = CocoStuffDataSet(supercategories=['animal'])
+    # for _ in range(10):
+    #     cocostuff.display(np.random.randint(low=0, high=len(cocostuff)))
+    # cocostuff.gather_stats()
+
+    val_dataset = CocoStuffDataSet(mode='val', supercategories=['animal'])
+    for _ in range(100):
+        idx = np.random.randint(low=0, high=len(val_dataset))
+        print("Displaying image {}".format(idx))
+        val_dataset.display(idx)
+
+
