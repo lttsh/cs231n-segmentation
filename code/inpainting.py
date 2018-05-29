@@ -23,7 +23,7 @@ class PartialConv2d(nn.Module):
             stride=stride,
             padding=padding,
             dilation=dilation)
-        self.sumpool2d = nn.LPPool1d(1, kernel_size, stride=stride)
+        self.sumpool2d = nn.LPPool2d(1, kernel_size, stride=stride)
 
     def forward(self, x, m):
         """
