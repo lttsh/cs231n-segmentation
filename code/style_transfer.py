@@ -222,15 +222,20 @@ def style_transfer(content_image, style_image, content_mask, image_size, style_s
     plt.show()
 
 # The setup functions
-SQUEEZENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-SQUEEZENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+# I dont think the MEAN and STD are squeezenet specific...
+# SQUEEZENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+# SQUEEZENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+COCO_ANIMAL_MEAN = np.array([0.46942962, 0.45565367, 0.39918785], dtype=np.float32)
+COCO_ANIMAL_STD = np.array([0.2529317,  0.24958833, 0.26295757], dtype=np.float32)
+
 
 def preprocess(img, size=512):
     transform = T.Compose([
         T.Resize(size),
         T.ToTensor(),
-        T.Normalize(mean=SQUEEZENET_MEAN.tolist(),
-                    std=SQUEEZENET_STD.tolist()),
+        T.Normalize(mean=COCO_ANIMAL_MEAN.tolist(),
+                    std=COCO_ANIMAL_STD.tolist()),
         T.Lambda(lambda x: x[None]),
     ])
     return transform(img)
@@ -238,8 +243,8 @@ def preprocess(img, size=512):
 def deprocess(img):
     transform = T.Compose([
         T.Lambda(lambda x: x[0]),
-        T.Normalize(mean=[0, 0, 0], std=[1.0 / s for s in SQUEEZENET_STD.tolist()]),
-        T.Normalize(mean=[-m for m in SQUEEZENET_MEAN.tolist()], std=[1, 1, 1]),
+        T.Normalize(mean=[0, 0, 0], std=[1.0 / s for s in COCO_ANIMAL_MEAN.tolist()]),
+        T.Normalize(mean=[-m for m in COCO_ANIMAL_MEAN.tolist()], std=[1, 1, 1]),
         T.Lambda(rescale),
         T.ToPILImage(),
     ])

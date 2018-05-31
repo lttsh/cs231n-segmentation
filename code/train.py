@@ -72,20 +72,23 @@ class Trainer():
             g_loss: (float) generator loss
             segmentation_loss: (float) segmentation loss
         """
+        # mini_batch_data = mini_batch_data.to(self.device) # Input image (B, 3, H, W)
         mini_batch_data = mini_batch_data.to(self.device) # Input image (B, 3, H, W)
+
         mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32) # Ground truth mask (B, C, H, W)
         mini_batch_labels_flat = mini_batch_labels_flat.to(self.device) # Groun truth mask flattened (B, H, W)
         gen_out = self._gen(mini_batch_data) # Segmentation output from generator (B, C, H , W)
         converted_mask = convert_to_mask(gen_out).to(self.device)
-        false_labels = torch.zeros((mini_batch_data.size()[0], 1)).to(self.device)
+        # false_labels = torch.zeros((mini_batch_data.size()[0], 1)).to(self.device)
         true_labels = torch.ones((mini_batch_data.size()[0], 1)).to(self.device)
+        smooth_false_labels, smooth_true_labels = smooth_labels(mini_batch_data.size()[0], self.device)
         if mode == 'disc' and self._disc is not None and self.train_gan:
             d_loss = 0
             self._discoptimizer.zero_grad()
             scores_false = self._disc(mini_batch_data, converted_mask) # (B,)
             scores_true = self._disc(mini_batch_data, mini_batch_labels) # (B,)
             # d_loss = torch.mean(scores_false) - torch.mean(scores_true)
-            d_loss = self._BCEcriterion(scores_false, false_labels) + self._BCEcriterion(scores_true, true_labels)
+            d_loss = self._BCEcriterion(scores_false, smooth_false_labels) + self._BCEcriterion(scores_true, smooth_true_labels)
             d_loss.backward()
             self._discoptimizer.step()
             # W-GAN weight clipping
@@ -143,11 +146,15 @@ class Trainer():
                             mini_batch_data, mini_batch_labels, mini_batch_labels_flat, 'gen')
                     d_iter=0
                 writer.add_scalar('Train/SegmentationLoss', segmentation_loss, total_iters)
+                gen_avg_grad_norm = average_grad_norm(self._gen)
+                writer.add_scalar('Train/GeneratorAvgGradNorm', gen_avg_grad_norm, total_iters)
                 if self._disc is not None and self.train_gan:
                     writer.add_scalar('Train/GeneratorLoss', g_loss, total_iters)
                     writer.add_scalar('Train/DiscriminatorLoss', d_loss, total_iters)
                     writer.add_scalar('Train/GanLoss', d_loss + g_loss, total_iters)
                     writer.add_scalar('Train/TotalLoss', self.gan_reg * (d_loss + g_loss) + segmentation_loss, total_iters)
+                    disc_avg_grad_norm = average_grad_norm(self._disc)
+                    writer.add_scalar('Train/DiscriminatorAvgGradNorm', disc_avg_grad_norm, total_iters)
                 if total_iters % print_every == 0:
                     if self._disc is None or not self.train_gan:
                         print ('Loss at iteration {}/{}: {}'.format(iter, epoch_len - 1, segmentation_loss))

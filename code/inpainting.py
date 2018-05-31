@@ -145,7 +145,7 @@ def get_image(dataset, idx):
     mask = torch.Tensor(mask).unsqueeze(0).repeat(n, 1, 1, 1)
     return img, mask
 
-if __name__ == '__main__':
+def basic_loss_test():
     loss_dict = {
                 'valid': 1, 
                 'hole': 6,
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     I_gt, mask = get_image(val_dataset, 1010)
     I_out = I_gt + 0.1 * torch.randn(I_gt.size())
     loss = total_loss(loss_dict, cnn, I_out, I_gt, mask)
-    print("Loss: ", loss)
+    print("Loss: ", loss) 
 
 
 class PartialConv2d(nn.Module):

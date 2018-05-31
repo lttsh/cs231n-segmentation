@@ -30,14 +30,17 @@ class _DecoderBlock(nn.Module):
         layers = [
             nn.ConvTranspose2d(in_channels, in_channels, kernel_size=2, stride=2),
             nn.Conv2d(in_channels, middle_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(middle_channels),
             nn.LeakyReLU()
         ]
         layers += [
-                      nn.Conv2d(middle_channels, middle_channels, kernel_size=3, padding=1),
-                      nn.LeakyReLU(),
+                    nn.Conv2d(middle_channels, middle_channels, kernel_size=3, padding=1),
+                    nn.LeakyReLU(),
+                    nn.BatchNorm2d(middle_channels),
                   ] * (num_conv_layers - 2)
         layers += [
             nn.Conv2d(middle_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels), 
             nn.LeakyReLU(),
         ]
         self.decode = nn.Sequential(*layers)
@@ -66,7 +69,7 @@ class SegNetSmaller(nn.Module):
     """
     Smaller implementation of SegNet based off of vgg-11
     """
-    def __init__(self, num_classes, pretrained=True, freeze_pretrained=False):
+    def __init__(self, num_classes, pretrained=True):
         """
         Args:
             num_classes: (int) number of output classes to be predicted
@@ -80,11 +83,7 @@ class SegNetSmaller(nn.Module):
         self.enc1 = nn.Sequential(*features[:3])  # C_out = 64
         self.enc2 = nn.Sequential(*features[3:6])  # C_out = 128
         self.enc3 = nn.Sequential(*features[6:11])  # C_out = 256
-
-        if freeze_pretrained:
-            for param in self.parameters():
-                param.requires_grad = False
-
+        
         self.dec3 = nn.Sequential(
             *([nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)] +
               [nn.Conv2d(128, 128, kernel_size=3, padding=1),
@@ -157,7 +156,7 @@ class SegNet16(nn.Module):
     PyTorch implementation of the SegNet architecture that uses 13 encoder-decoder layers.
 
     """
-    def __init__(self, num_classes, pretrained=True, freeze_pretrained=False):
+    def __init__(self, num_classes, pretrained=True):
         """
         Args:
             num_classes: (int) number of output classes to be predicted
@@ -175,10 +174,6 @@ class SegNet16(nn.Module):
         self.enc3 = nn.Sequential(*features[14:24]) # Enc3 C_out 256
         self.enc4 = nn.Sequential(*features[24:34]) # Enc4 C_out 512
         self.enc5 = nn.Sequential(*features[34:44]) # Enc5 C_out 512
-
-        if freeze_pretrained:
-            for param in self.parameters():
-                param.requires_grad = False
 
         self.dec5 = nn.Sequential(
             *([nn.ConvTranspose2d(512, 512, kernel_size=2, stride=2)] +

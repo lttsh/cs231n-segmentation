@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torchvision.transforms as T
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
@@ -92,3 +93,54 @@ def discrete_cmap(N, base_cmap=None):
     color_list = base(np.linspace(0, 1, N))
     cmap_name = base.name + str(N)
     return base.from_list(cmap_name, color_list, N)
+
+def smooth_labels(n, device):
+    """
+    produces smoothed 'real' and 'fake' labels close to 1.0 and 0.0, respecitively
+
+    Input:
+        n: (int) number of real and fake labels to produce
+    Return:
+        false_labels: (n,1) shape Tensor of labels from 0.0 to 0.3
+        true_labels: (n,1) shape Tensor of labels from 0.7 to 1.0
+    """
+    false_labels = 0.3 * torch.rand(n, 1).to(device)
+    true_labels = 1.0 - 0.3 * torch.rand(n, 1).to(device)
+    return false_labels, true_labels
+
+
+COCO_ANIMAL_MEAN = [0.46942962, 0.45565367, 0.39918785]
+COCO_ANIMAL_STD = [0.2529317,  0.24958833, 0.26295757]
+
+def normalize():
+    return T.Normalize(mean=COCO_ANIMAL_MEAN, std=COCO_ANIMAL_STD)
+
+def de_normalize(images):
+    """
+    Normalize input batch of images
+    
+    Input:
+        images: pytorch tensor with shape (3, H, W)
+    Return:
+        denormalized images
+    """
+    mean = torch.Tensor(COCO_ANIMAL_MEAN).view(-1, 1, 1)
+    std = torch.Tensor(COCO_ANIMAL_STD).view(-1, 1, 1)
+    return (images * std) + mean
+
+def average_grad_norm(model):
+        """
+        Return the average gradient norm of the input model's parameters
+        Partly copied from torch/nn/utils/clip_grad
+        """
+
+        norm_type = 2.0
+        total_norm = 0
+        n = 0.0
+        for p in model.parameters():
+            n += 1
+            param_norm = p.grad.data.norm(norm_type)
+            total_norm += param_norm ** norm_type
+        total_norm = total_norm ** (1. / norm_type)
+        average_norm = total_norm / n
+        return average_norm

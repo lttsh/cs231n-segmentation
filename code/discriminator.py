@@ -28,7 +28,8 @@ class GAN(nn.Module):
         """
         Args:
             num_classes: (int) number of output classes to be predicted
-            pretrained: (bool) if True loads vgg-11 pretrained weights. default=True
+            masks_shape: (tuple) shape of the input masks
+            images_shape: (tuple) shape of input images
         """
         super().__init__()
         self.image_branch = nn.Sequential(

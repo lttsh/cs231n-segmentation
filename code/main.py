@@ -86,9 +86,9 @@ if __name__ == "__main__":
                 current_dict[key] = value
             args = argparse.Namespace(**current_dict)
 
-    HEIGHT, WIDTH = args.size, args.size
-    val_dataset = CocoStuffDataSet(mode='val', height=HEIGHT, width=WIDTH)
-    train_dataset = CocoStuffDataSet(mode='train', height=HEIGHT, width=WIDTH)
+    HEIGHT = WIDTH = args.size
+    val_dataset = CocoStuffDataSet(mode='val', supercategories=['animal'], height=HEIGHT, width=WIDTH)
+    train_dataset = CocoStuffDataSet(mode='train', supercategories=['animal'], height=HEIGHT, width=WIDTH)
     val_loader = DataLoader(val_dataset, args.batch_size, shuffle=True)
     train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True)
     NUM_CLASSES = train_dataset.numClasses
@@ -96,12 +96,10 @@ if __name__ == "__main__":
     image_shape = (3, HEIGHT, WIDTH)
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
 
-    by_pixel_weights(train_loader, savename='all_train_pixel_weights.pt')
-    print("Saved") 
-    assert True == False
     discriminator = None
     generator = get_generator(args.generator_name, NUM_CLASSES)
-    discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
+    if args.train_gan:
+        discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
 
     trainer = Trainer(generator, discriminator, train_loader, val_loader, \
                     gan_reg=args.gan_reg, d_iters=args.d_iters, \

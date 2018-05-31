@@ -8,7 +8,7 @@ import numpy as np
 from scipy import misc
 from PIL import Image
 import os
-from utils import discrete_cmap
+from utils import discrete_cmap, normalize, de_normalize
 
 class CocoStuffDataSet(dset.CocoDetection):
     '''
@@ -26,7 +26,8 @@ class CocoStuffDataSet(dset.CocoDetection):
         else:
             transform = transforms.Compose([
                 transforms.Resize((height, width)),
-                transforms.ToTensor()
+                transforms.ToTensor(),
+                normalize(),
             ])
         super().__init__(
             root=img_dir + mode + '2017/',
@@ -120,7 +121,7 @@ class CocoStuffDataSet(dset.CocoDetection):
 
     def display(self, img_id):
         img, _, masks = self[img_id]
-        print("Image Size: ", img.size())
+        img = de_normalize(img)
         display_image = np.transpose(img.numpy(), (1, 2, 0))
         plt.figure()
         plt.subplot(121)
@@ -129,7 +130,6 @@ class CocoStuffDataSet(dset.CocoDetection):
         plt.title('original image')
         plt.subplot(122)
         plt.imshow(display_image)
-        print (np.unique(masks))
         cmap = discrete_cmap(self.numClasses, 'Paired')
         norm = colors.NoNorm(vmin=0, vmax=self.numClasses)
         plt.imshow(masks, alpha=0.8, cmap=cmap, norm=norm)
@@ -137,8 +137,35 @@ class CocoStuffDataSet(dset.CocoDetection):
         plt.title('annotated image')
         plt.show()
 
+def calculate_mean_and_std(supercategories=['animal'], height=128, width=128):
+    height = width = 128
+    train_dataset = CocoStuffDataSet(mode='train', supercategories=['animal'], height=height, width=width)
+    
+    iters = 0
+    n = 0.0
+    sum_data = np.zeros(3)
+    sum_2_data = np.zeros(3)
+    for img, _, _ in train_dataset:
+        img = img.numpy()
+        iters += 1
+        n += height * width
+        sum_data += img.sum(axis=(1,2))
+        sum_2_data += np.power(img, 2).sum(axis=(1,2))
+        if iters % 100 == 0:
+            mean = sum_data / n
+            std = np.sqrt(sum_2_data/n - mean**2)
+            print("Iter: ", iters)
+            print("Mean: ", mean)
+            print("Std: ", std)
+    mean = sum_data / n
+    std = np.sqrt(sum_2_data/n - mean**2)
+    print("Final")
+    print("Mean: ", mean)
+    print("Std: ", std)
+    return mean, std
+
 if __name__ == "__main__":
-    ## Display
+    # Display
     # cocostuff = CocoStuffDataSet(supercategories=['animal'])
     # for _ in range(10):
     #     cocostuff.display(np.random.randint(low=0, high=len(cocostuff)))
@@ -149,5 +176,6 @@ if __name__ == "__main__":
         idx = np.random.randint(low=0, high=len(val_dataset))
         print("Displaying image {}".format(idx))
         val_dataset.display(idx)
-
+    val_dataset.gather_stats()
+    
 
