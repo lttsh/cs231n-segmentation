@@ -39,7 +39,9 @@ if __name__ == "__main__":
     parser.add_argument('--eval_every', '-e', default=500, type=int,
                         metavar='N', help='print frequency (default: 10)')
     parser.add_argument('--load_model', type=bool, default=False,
-                        help='load model from saved checkpoint ')
+                        help='load model from checkpoint ')
+    parser.add_argument('--load_iter', '-li', type=int, default=None,
+                        help='specify which iter to resume training from')
     parser.add_argument('--experiment_name', '-n', type=str, default=None,
                         help='name of experiment used for saving loading checkpoints')
     # GAN Hyperparameters
@@ -81,14 +83,15 @@ if __name__ == "__main__":
             args_dict['load_model'] = True
             args_dict['experiment_name'] = args.experiment_name
             args_dict['train_gan'] = args.train_gan
+            args_dict['beta1'] = args.beta1
             current_dict = vars(args)
             for (key, value) in args_dict.items():
                 current_dict[key] = value
             args = argparse.Namespace(**current_dict)
 
     HEIGHT = WIDTH = args.size
-    val_dataset = CocoStuffDataSet(mode='val', supercategories=['animal'], height=HEIGHT, width=WIDTH)
-    train_dataset = CocoStuffDataSet(mode='train', supercategories=['animal'], height=HEIGHT, width=WIDTH)
+    val_dataset = CocoStuffDataSet(mode='val', supercategories=['animal'], height=HEIGHT, width=WIDTH, do_normalize=False)
+    train_dataset = CocoStuffDataSet(mode='train', supercategories=['animal'], height=HEIGHT, width=WIDTH, do_normalize=False)
     val_loader = DataLoader(val_dataset, args.batch_size, shuffle=True)
     train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True)
     NUM_CLASSES = train_dataset.numClasses
@@ -105,7 +108,7 @@ if __name__ == "__main__":
                     gan_reg=args.gan_reg, d_iters=args.d_iters, \
                     weight_clip= args.weight_clip, disc_lr=args.disc_lr, gen_lr=args.gen_lr, beta1=args.beta1,
                     train_gan= args.train_gan, \
-                    experiment_dir=experiment_dir, resume=args.load_model)
+                    experiment_dir=experiment_dir, resume=args.load_model, load_iter=args.load_iter)
 
     if args.mode == "train":
         trainer.train(num_epochs=args.epochs, print_every=args.print_every, eval_every=args.eval_every)

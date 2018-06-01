@@ -12,7 +12,7 @@ from tensorboardX import SummaryWriter
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
             gan_reg=1.0, d_iters=5, weight_clip=1e-2, disc_lr=1e-5, gen_lr=1e-2, beta1=0.5,\
-            train_gan=False, experiment_dir='./', resume=False, load_epoch=None):
+            train_gan=False, experiment_dir='./', resume=False, load_iter=None):
         """
         Training class for a specified model
         Args:
@@ -53,7 +53,7 @@ class Trainer():
         self.experiment_dir = experiment_dir
         self.best_path = os.path.join(experiment_dir, 'best.pth.tar')
         if resume:
-            self.load_model(load_epoch)
+            self.load_model(load_iter)
 
     def _train_batch(self, mini_batch_data, mini_batch_labels, mini_batch_labels_flat, mode):
         """
@@ -185,18 +185,18 @@ class Trainer():
             save_dict['disc_dict'] = self._disc.state_dict()
             save_dict['disc_opt'] = self._discoptimizer.state_dict()
             save_dict['gan_reg'] = self.gan_reg
-        save_path = os.path.join(self.experiment_dir, str(epoch) + '.pth.tar')
+        save_path = os.path.join(self.experiment_dir, str(total_iters) + '.pth.tar')
         torch.save(save_dict, save_path)
         print ("=> Saved checkpoint '{}'".format(save_path))
         if is_best:
             shutil.copyfile(save_path, self.best_path)
             print ("=> Saved best checkpoint '{}'".format(self.best_path))
 
-    def load_model(self, load_epoch):
+    def load_model(self, load_iters):
         if load_epoch is None:
             save_path = os.path.join(self.experiment_dir, 'best.pth.tar')
         else:
-            save_path = os.path.join(self.experiment_dir, str(epoch) + '.pth.tar')
+            save_path = os.path.join(self.experiment_dir, str(load_iters) + '.pth.tar')
         if os.path.isfile(save_path):
             print("=> loading checkpoint '{}'".format(save_path))
             checkpoint = torch.load(save_path)
