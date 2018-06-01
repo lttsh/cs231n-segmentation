@@ -53,11 +53,11 @@ if __name__ == "__main__":
                         help='Weight clipping for W-GAN loss')
     parser.add_argument('--gan_reg', default=1e-2, type=float,
                         help='Regularization strength from gan')
-    parser.add_argument('--beta1', default=0.9, type=float,
+    parser.add_argument('--beta1', type=float,
                         help='beta1 parameter to use for Adam optimizers')
     parser.add_argument('-d', '--d_iters', default=5, type=int,
                         help='Number of training iterations for discriminator within one loop')
-    parser.add_argument('--generator_name', default='SegNetSmall', type=str,
+    parser.add_argument('--generator_name', default='SegNet16', type=str,
                         help='Name of generator model to run')
 
     args = parser.parse_args()

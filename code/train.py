@@ -12,7 +12,7 @@ from tensorboardX import SummaryWriter
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
             gan_reg=1.0, d_iters=5, weight_clip=1e-2, disc_lr=1e-5, gen_lr=1e-2, beta1=0.5,\
-            train_gan=False, experiment_dir='./', resume=False):
+            train_gan=False, experiment_dir='./', resume=False, load_epoch=None):
         """
         Training class for a specified model
         Args:
@@ -41,7 +41,7 @@ class Trainer():
         self._train_loader = train_loader
         self._val_loader = val_loader
 
-        self._MCEcriterion = nn.CrossEntropyLoss(self._train_loader.dataset.weights.to(self.device)) # Criterion for segmentation loss
+        self._MCEcriterion = nn.CrossEntropyLoss() # self._train_loader.dataset.weights.to(self.device)) # Criterion for segmentation loss
         self._genoptimizer = optim.Adam(self._gen.parameters(), lr=gen_lr, betas=(beta1, 0.999)) # Generator optimizer
         self.gan_reg = gan_reg
         self.d_iters = d_iters
@@ -51,10 +51,9 @@ class Trainer():
         self.best_mIOU = 0
         self.weight_clip = weight_clip
         self.experiment_dir = experiment_dir
-        self.save_path = os.path.join(experiment_dir, 'ckpt.pth.tar')
         self.best_path = os.path.join(experiment_dir, 'best.pth.tar')
         if resume:
-            self.load_model()
+            self.load_model(load_epoch)
 
     def _train_batch(self, mini_batch_data, mini_batch_labels, mini_batch_labels_flat, mode):
         """
@@ -186,17 +185,21 @@ class Trainer():
             save_dict['disc_dict'] = self._disc.state_dict()
             save_dict['disc_opt'] = self._discoptimizer.state_dict()
             save_dict['gan_reg'] = self.gan_reg
-
-        torch.save(save_dict, self.save_path)
-        print ("=> Saved checkpoint '{}'".format(self.save_path))
+        save_path = os.path.join(self.experiment_dir, str(epoch) + '.pth.tar')
+        torch.save(save_dict, save_path)
+        print ("=> Saved checkpoint '{}'".format(save_path))
         if is_best:
-            shutil.copyfile(self.save_path, self.best_path)
+            shutil.copyfile(save_path, self.best_path)
             print ("=> Saved best checkpoint '{}'".format(self.best_path))
 
-    def load_model(self):
-        if os.path.isfile(self.save_path):
-            print("=> loading checkpoint '{}'".format(self.save_path))
-            checkpoint = torch.load(self.save_path)
+    def load_model(self, load_epoch):
+        if load_epoch is None:
+            save_path = os.path.join(self.experiment_dir, 'best.pth.tar')
+        else:
+            save_path = os.path.join(self.experiment_dir, str(epoch) + '.pth.tar')
+        if os.path.isfile(save_path):
+            print("=> loading checkpoint '{}'".format(save_path))
+            checkpoint = torch.load(save_path)
             self.start_iter = checkpoint['iter']
             self.start_total_iters = checkpoint.get('total_iters', None)
             self.start_epoch = checkpoint['epoch']
@@ -209,9 +212,9 @@ class Trainer():
                   self._discoptimizer.load_state_dict(checkpoint['disc_opt'])
                   self.gan_reg = checkpoint['gan_reg']
 
-            print("=> loaded checkpoint '{}' (iter {})".format(self.save_path, checkpoint['iter']))
+            print("=> loaded checkpoint '{}' (iter {})".format(save_path, checkpoint['iter']))
         else:
-            print("=> no checkpoint found at '{}'".format(self.save_path))
+            print("=> no checkpoint found at '{}'".format(save_path))
 
     '''
     Evaluation methods
