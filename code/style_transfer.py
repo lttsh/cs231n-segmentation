@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from dataset import CocoStuffDataSet
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor   
+
 def content_loss(content_weight, content_current, content_original):
     """
     Compute the content loss for style transfer.
@@ -24,8 +27,8 @@ def content_loss(content_weight, content_current, content_original):
     - scalar content loss
     """
     _, C_l, H_l, W_l = content_current.size()
-    cc = content_current.view(C_l, H_l*W_l)
-    ct = content_original.view(C_l, H_l*W_l)
+    cc = content_current.view(C_l, H_l*W_l).to(device)
+    ct = content_original.view(C_l, H_l*W_l).to(device)
     return content_weight * (cc-ct).pow(2).sum()
 
 def gram_matrix(features, feature_mask=None, normalize=True):
@@ -43,10 +46,10 @@ def gram_matrix(features, feature_mask=None, normalize=True):
       (optionally normalized) Gram matrices for the N input images.
     """
     N, C, H, W = features.size()
-    F_0 = F_1 = features.view(N, C, -1)
+    F_0 = F_1 = features.view(N, C, -1).to(device)
 
     if feature_mask is not None:
-        T = feature_mask.view(*feature_mask.shape[:-2], -1)
+        T = feature_mask.view(*feature_mask.shape[:-2], -1).to(device)
         # print("F shape: ", F_1.shape)
         # print("T shape: ", T.shape)
         # print("Feature mask shape: ", feature_mask.shape)
@@ -82,7 +85,7 @@ def style_loss(feats, style_layers, style_targets, style_weights, feature_masks)
             G = gram_matrix(feats[style_layers[i]], feature_masks[style_layers[i]])
         else:
             G = gram_matrix(feats[style_layers[i]])
-        loss += style_weights[i] * (style_targets[i] - G).pow(2).sum()
+        loss += style_weights[i] * (style_targets[i].to(device) - G).pow(2).sum()
     return loss
 
 def tv_loss(img, tv_weight):
@@ -98,8 +101,9 @@ def tv_loss(img, tv_weight):
       for img weighted by tv_weight.
     """
     N, C, H, W = img.size()
-    down = torch.cat((img[:,:,1:,:], img[:,:,-1,:].view(N, C, 1, W)), dim=2)
-    right = torch.cat((img[:,:,:,1:], img[:,:,:,-1].view(N, C, H, 1)), dim=3)
+    down = torch.cat((img[:,:,1:,:], img[:,:,-1,:].view(N, C, 1, W)), dim=2).to(device)
+    right = torch.cat((img[:,:,:,1:], img[:,:,:,-1].view(N, C, H, 1)), dim=3).to(device)
+    img = img.to(device)
     return tv_weight * ((down - img).pow(2).sum() + (right - img).pow(2).sum())
 
 # We provide this helper code which takes an image, a model (cnn), and returns a list of
@@ -120,7 +124,7 @@ def extract_features(x, cnn):
       spatial dimensions (H_i, W_i).
     """
     features = []
-    prev_feat = x
+    prev_feat = x.to(device)
     for i, module in enumerate(cnn._modules.values()):
         next_feat = module(prev_feat)
         features.append(next_feat)
@@ -128,7 +132,7 @@ def extract_features(x, cnn):
     return features
 
 # Extract features for the style image
-def prep_style(style_img, image_size):
+def prep_style(cnn, style_img, image_size, style_layers):
     style_img = preprocess(style_img, size=image_size)
     feats = extract_features(style_img, cnn)
     style_targets = []
@@ -136,12 +140,13 @@ def prep_style(style_img, image_size):
         style_targets.append(gram_matrix(feats[idx].clone()))
     return style_img, style_targets
 
-def style_transfer(content_image, style_image, content_mask, image_size, content_layer, content_weight,
-                   style_layers, style_weights, tv_weight, init_random=False, mask_layer=False, second_style_image=None):
+def style_transfer(cnn, content_image, style_image, content_mask, image_size, content_layer, content_weight,
+                   style_layers, style_weights, tv_weight, max_iters, init_random=False, mask_layer=False, second_style_image=None):
     """
     Run style transfer!
     
     Inputs:
+    - cnn: cnn model 
     - content_image: filename of content image
     - style_image: filename of style image
     - image_size: size of smallest image dimension (used for content loss and generated image)
@@ -150,17 +155,20 @@ def style_transfer(content_image, style_image, content_mask, image_size, content
     - style_layers: list of layers to use for style loss
     - style_weights: list of weights to use for each layer in style_layers
     - tv_weight: weight of total variation regularization term
+    - max_iters: number of iterations to run 
     - init_random: initialize the starting image to uniform random noise
+    - mask_layer: (bool) if True, use masking on gram matrices.
+    - second_style_image: second style image to use on the foreground of image
     """
-    
     # Extract features for the content image
-    content_img = preprocess(content_image, size=image_size)
+    content_img = preprocess(content_image, size=image_size).to(device)
     feats = extract_features(content_img, cnn)
-    content_target = feats[content_layer].clone()
+    content_target = feats[content_layer].clone().to(device)
 
-    style_image, style_targets = prep_style(style_image, image_size)
+    style_image, style_targets = prep_style(cnn, style_image, image_size, style_layers)
+    style_image = style_image
     if second_style_image is not None:
-        second_style_image, second_style_targets = prep_style(second_style_image, image_size)
+        second_style_image, second_style_targets = prep_style(cnn, second_style_image, image_size, style_layers)
 
     # Initialize output image to content image or noise
     if init_random:
@@ -168,14 +176,12 @@ def style_transfer(content_image, style_image, content_mask, image_size, content
     else:
         img = content_img.clone().type(dtype)
 
+    img = img.to(device)
     # We do want the gradient computed on our image!
     img.requires_grad_()
     
     # Set up optimization hyperparameters
-    # initial_lr = 3.0
-    initial_lr = 0.5
-    decayed_lr = 0.1
-    decay_lr_at = 180
+    initial_lr = 0.1
 
     # Note that we are optimizing the pixel values of the image by passing
     # in the img Torch tensor, whose requires_grad flag is set to True
@@ -190,9 +196,9 @@ def style_transfer(content_image, style_image, content_mask, image_size, content
         #     plt.imshow(m)
         #     plt.show()
         second_feature_masks = get_soft_masks(1.0 - content_mask, cnn, style_layers)
-    for t in range(200):
-        if t < 190:
-            img.data.clamp_(-1.5, 1.5)
+    for t in range(max_iters):
+#         if t < 390:
+#             img.data.clamp_(-1.5, 1.5)
         optimizer.zero_grad()
 
         feats = extract_features(img, cnn)
@@ -201,7 +207,8 @@ def style_transfer(content_image, style_image, content_mask, image_size, content
         c_loss = content_loss(content_weight, feats[content_layer], content_target)
         s_loss = style_loss(feats, style_layers, style_targets, style_weights, feature_masks)
         if second_style_image is not None:
-            second_s_loss = style_loss(feats, style_layers, second_style_targets, style_weights, second_feature_masks)
+            second_style_weights = [x / 10 for x in style_weights]
+            second_s_loss = style_loss(feats, style_layers, second_style_targets, second_style_weights, second_feature_masks)
             s_loss += second_s_loss
         t_loss = tv_loss(img, tv_weight)
         loss = c_loss + s_loss + t_loss
@@ -209,19 +216,19 @@ def style_transfer(content_image, style_image, content_mask, image_size, content
         loss.backward()
 
         # Perform gradient descents on our image values
-        if t == decay_lr_at:
-            optimizer = torch.optim.Adam([img], lr=decayed_lr)
+#         if t == decay_lr_at:
+#             optimizer = torch.optim.Adam([img], lr=decayed_lr)
         optimizer.step()
 
-        if t % 10 == 0:
-            print("Iteration {},\tLoss: {},\tContent: {},\tStyle: {},\tTV: {}".format(t, loss, c_loss, s_loss, t_loss))
+#         if t % 10 == 0:
+#             print("Iteration {},\tLoss: {},\tContent: {},\tStyle: {},\tTV: {}".format(t, loss, c_loss, s_loss, t_loss))
 
     img = np.asarray(deprocess(img.data.cpu()), dtype=np.uint8)
-    content_img = np.asarray(deprocess(content_img), dtype=np.uint8)
+    content_img = np.asarray(deprocess(content_img.cpu()), dtype=np.uint8)
     content_mask = np.expand_dims(content_mask, axis=-1)
     final_img = img.astype(np.uint8)
     final_img = PIL.Image.fromarray(final_img)
-    return final_img
+    return final_img, loss
 
 # The setup functions
 # SQUEEZENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -289,7 +296,9 @@ def get_soft_masks(mask, cnn, layer_indices):
 def display_style_transfer(img, savename):
     plt.figure()
     plt.axis('off')
-    plt.imshow(final_img)
+    img = PIL.ImageEnhance.Contrast(img).enhance(1.3)
+    img = PIL.ImageEnhance.Brightness(img).enhance(1.1)
+    plt.imshow(img)
     plt.savefig(savename)
     plt.show()
 
@@ -315,7 +324,7 @@ if __name__ == "__main__":
 
     cnn = torchvision.models.vgg16(pretrained=True).features
     style_layers = (0, 5, 10, 17, 24)
-
+    style_weights = np.ones(5).tolist()
     cnn.type(dtype)
     # We don't want to train the model any further, so we don't want PyTorch to waste computation 
     # computing gradients on parameters we're never going to update.
@@ -333,6 +342,7 @@ if __name__ == "__main__":
         style_foreground_image = None
 
     transfer_params = {
+        'cnn' : cnn,
         'content_image' : content_image,
         'style_image' : style_background_image,
         'content_mask': background_mask,
@@ -340,7 +350,7 @@ if __name__ == "__main__":
         'content_layer' : 12,
         'content_weight' : 1e-3,
         'style_layers' : style_layers,
-        'style_weights' : (.02, .02, .02, .02, .02),
+        'style_weights' : style_weights,
         # 'tv_weight' : 1e-2,
         'tv_weight' : 0,
         'init_random' : False,
