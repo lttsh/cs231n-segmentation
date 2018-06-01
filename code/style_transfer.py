@@ -137,7 +137,7 @@ def prep_style(style_img, image_size):
     return style_img, style_targets
 
 def style_transfer(content_image, style_image, content_mask, image_size, content_layer, content_weight,
-                   style_layers, style_weights, tv_weight, savename, init_random=False, mask_layer=False, second_style_image=None):
+                   style_layers, style_weights, tv_weight, init_random=False, mask_layer=False, second_style_image=None):
     """
     Run style transfer!
     
@@ -153,7 +153,6 @@ def style_transfer(content_image, style_image, content_mask, image_size, content
     - init_random: initialize the starting image to uniform random noise
     """
     
-
     # Extract features for the content image
     content_img = preprocess(content_image, size=image_size)
     feats = extract_features(content_img, cnn)
@@ -181,9 +180,7 @@ def style_transfer(content_image, style_image, content_mask, image_size, content
     # Note that we are optimizing the pixel values of the image by passing
     # in the img Torch tensor, whose requires_grad flag is set to True
     optimizer = torch.optim.Adam([img], lr=initial_lr)
-    
-    plt.figure()
-    
+        
     feature_masks = None
     if mask_layer:
         feature_masks = get_soft_masks(content_mask, cnn, style_layers)
@@ -224,10 +221,7 @@ def style_transfer(content_image, style_image, content_mask, image_size, content
     content_mask = np.expand_dims(content_mask, axis=-1)
     final_img = img.astype(np.uint8)
     final_img = PIL.Image.fromarray(final_img)
-    plt.axis('off')
-    plt.imshow(final_img)
-    plt.savefig(savename)
-    plt.show()
+    return final_img
 
 # The setup functions
 # SQUEEZENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -292,6 +286,12 @@ def get_soft_masks(mask, cnn, layer_indices):
             soft_masks.append(None)
     return soft_masks
 
+def display_style_transfer(img, savename):
+    plt.figure()
+    plt.axis('off')
+    plt.imshow(final_img)
+    plt.savefig(savename)
+    plt.show()
 
 if __name__ == "__main__":
     dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
@@ -303,8 +303,9 @@ if __name__ == "__main__":
                         help='filename for the foreground style')
     parser.add_argument('-s', '--im_size', default=256, type=int,
                         help='desired size of input images')
-    parser.add_argument('-i', '--content_index', default=1010, type=int,
+    parser.add_argument('-i', '--content_index', default=417, type=int,
                         help='index of context image in coco dataset')
+    # suggested indices: 417, 77, 1011, 913, 55
     args = parser.parse_args()
 
     HEIGHT = WIDTH = args.im_size
@@ -312,8 +313,8 @@ if __name__ == "__main__":
     content_image, background_mask = get_image(val_dataset, args.content_index)
     foreground_mask = 1.0 - background_mask
 
-    cnn = torchvision.models.vgg11(pretrained=True).features
-    style_layers = (3, 8, 13, 18)
+    cnn = torchvision.models.vgg16(pretrained=True).features
+    style_layers = (0, 5, 10, 17, 24)
 
     cnn.type(dtype)
     # We don't want to train the model any further, so we don't want PyTorch to waste computation 
@@ -326,22 +327,27 @@ if __name__ == "__main__":
     style_foreground_name = args.foreground_style
     
     style_background_image = PIL.Image.open(os.path.join(style_dir, style_background_name))
-    style_foreground_image = PIL.Image.open(os.path.join(style_dir, style_foreground_name))
+    if style_foreground_name:
+        style_foreground_image = PIL.Image.open(os.path.join(style_dir, style_foreground_name))
+    else:
+        style_foreground_image = None
 
     transfer_params = {
         'content_image' : content_image,
         'style_image' : style_background_image,
         'content_mask': background_mask,
         'image_size' : HEIGHT,
-        'content_layer' : 6,
-        'content_weight' : 1e-3, 
+        'content_layer' : 12,
+        'content_weight' : 1e-3,
         'style_layers' : style_layers,
-        'style_weights' : (20000, 500, 12, 1),
-        'tv_weight' : 1e-2,
-        'savename' : style_background_name,
+        'style_weights' : (.02, .02, .02, .02, .02),
+        # 'tv_weight' : 1e-2,
+        'tv_weight' : 0,
         'init_random' : False,
         'mask_layer' : True,
         'second_style_image' : style_foreground_image 
     }
 
-    style_transfer(**transfer_params)
+    final_img = style_transfer(**transfer_params)
+    display_style_transfer(final_img, 'test.png')
+    
