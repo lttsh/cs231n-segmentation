@@ -1,4 +1,4 @@
-import os
+import os, argparse
 import torch
 import torch.nn as nn
 import torchvision
@@ -127,8 +127,17 @@ def extract_features(x, cnn):
         prev_feat = next_feat
     return features
 
-def style_transfer(content_image, style_image, content_mask, image_size, style_size, content_layer, content_weight,
-                   style_layers, style_weights, tv_weight, savename, init_random=False, mask_layer=False):
+# Extract features for the style image
+def prep_style(style_img, image_size):
+    style_img = preprocess(style_img, size=image_size)
+    feats = extract_features(style_img, cnn)
+    style_targets = []
+    for idx in style_layers:
+        style_targets.append(gram_matrix(feats[idx].clone()))
+    return style_img, style_targets
+
+def style_transfer(content_image, style_image, content_mask, image_size, content_layer, content_weight,
+                   style_layers, style_weights, tv_weight, savename, init_random=False, mask_layer=False, second_style_image=None):
     """
     Run style transfer!
     
@@ -136,7 +145,6 @@ def style_transfer(content_image, style_image, content_mask, image_size, style_s
     - content_image: filename of content image
     - style_image: filename of style image
     - image_size: size of smallest image dimension (used for content loss and generated image)
-    - style_size: size of smallest style image dimension
     - content_layer: layer to use for content loss
     - content_weight: weighting on content loss
     - style_layers: list of layers to use for style loss
@@ -151,12 +159,9 @@ def style_transfer(content_image, style_image, content_mask, image_size, style_s
     feats = extract_features(content_img, cnn)
     content_target = feats[content_layer].clone()
 
-    # Extract features for the style image
-    style_img = preprocess(style_image, size=style_size)
-    feats = extract_features(style_img, cnn)
-    style_targets = []
-    for idx in style_layers:
-        style_targets.append(gram_matrix(feats[idx].clone()))
+    style_image, style_targets = prep_style(style_image, image_size)
+    if second_style_image is not None:
+        second_style_image, second_style_targets = prep_style(second_style_image, image_size)
 
     # Initialize output image to content image or noise
     if init_random:
@@ -168,7 +173,8 @@ def style_transfer(content_image, style_image, content_mask, image_size, style_s
     img.requires_grad_()
     
     # Set up optimization hyperparameters
-    initial_lr = 3.0
+    # initial_lr = 3.0
+    initial_lr = 0.5
     decayed_lr = 0.1
     decay_lr_at = 180
 
@@ -182,12 +188,11 @@ def style_transfer(content_image, style_image, content_mask, image_size, style_s
     if mask_layer:
         feature_masks = get_soft_masks(content_mask, cnn, style_layers)
         # for m in feature_masks:
-        #     if m is None:
-        #         continue
         #     m = m.detach().numpy().reshape(*(m.shape)[-2:])
         #     plt.axis('off')
         #     plt.imshow(m)
         #     plt.show()
+        second_feature_masks = get_soft_masks(1.0 - content_mask, cnn, style_layers)
     for t in range(200):
         if t < 190:
             img.data.clamp_(-1.5, 1.5)
@@ -198,6 +203,9 @@ def style_transfer(content_image, style_image, content_mask, image_size, style_s
         # Compute loss
         c_loss = content_loss(content_weight, feats[content_layer], content_target)
         s_loss = style_loss(feats, style_layers, style_targets, style_weights, feature_masks)
+        if second_style_image is not None:
+            second_s_loss = style_loss(feats, style_layers, second_style_targets, style_weights, second_feature_masks)
+            s_loss += second_s_loss
         t_loss = tv_loss(img, tv_weight)
         loss = c_loss + s_loss + t_loss
         
@@ -209,7 +217,7 @@ def style_transfer(content_image, style_image, content_mask, image_size, style_s
         optimizer.step()
 
         if t % 10 == 0:
-            print("Iteration {}".format(t))
+            print("Iteration {},\tLoss: {},\tContent: {},\tStyle: {},\tTV: {}".format(t, loss, c_loss, s_loss, t_loss))
 
     img = np.asarray(deprocess(img.data.cpu()), dtype=np.uint8)
     content_img = np.asarray(deprocess(content_img), dtype=np.uint8)
@@ -222,13 +230,11 @@ def style_transfer(content_image, style_image, content_mask, image_size, style_s
     plt.show()
 
 # The setup functions
-# I dont think the MEAN and STD are squeezenet specific...
 # SQUEEZENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 # SQUEEZENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 COCO_ANIMAL_MEAN = np.array([0.46942962, 0.45565367, 0.39918785], dtype=np.float32)
 COCO_ANIMAL_STD = np.array([0.2529317,  0.24958833, 0.26295757], dtype=np.float32)
-
 
 def preprocess(img, size=512):
     transform = T.Compose([
@@ -243,7 +249,7 @@ def preprocess(img, size=512):
 def deprocess(img):
     transform = T.Compose([
         T.Lambda(lambda x: x[0]),
-        T.Normalize(mean=[0, 0, 0], std=[1.0 / s for s in COCO_ANIMAL_MEAN.tolist()]),
+        T.Normalize(mean=[0, 0, 0], std=[1.0 / s for s in COCO_ANIMAL_STD.tolist()]),
         T.Normalize(mean=[-m for m in COCO_ANIMAL_MEAN.tolist()], std=[1, 1, 1]),
         T.Lambda(rescale),
         T.ToPILImage(),
@@ -259,7 +265,6 @@ def get_image(dataset, idx):
     # 4509, 552
     
     img, masks, mask_max = dataset[idx]
-    # channel = np.min(mask_max)  # get an arbitrary foreground class  
     channel = np.max(mask_max)  # get the background class
     img = PIL.Image.fromarray(np.uint8(img.numpy().transpose(1, 2, 0)*255.))
     mask = masks[channel]
@@ -291,12 +296,21 @@ def get_soft_masks(mask, cnn, layer_indices):
 if __name__ == "__main__":
     dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
-    HEIGHT = WIDTH = 256
-    val_dataset = CocoStuffDataSet(mode='val', supercategories=['animal'], height=HEIGHT, width=WIDTH)
-    content_image, content_mask = get_image(val_dataset, 1010)
+    parser = argparse.ArgumentParser(description='Style Transfer')
+    parser.add_argument('-b' , '--background_style', default='starry_night.jpg', type=str,
+                        help='filename for the background style')
+    parser.add_argument('-f' , '--foreground_style', default=None, type=str,
+                        help='filename for the foreground style')
+    parser.add_argument('-s', '--im_size', default=256, type=int,
+                        help='desired size of input images')
+    parser.add_argument('-i', '--content_index', default=1010, type=int,
+                        help='index of context image in coco dataset')
+    args = parser.parse_args()
 
-    # cnn = torchvision.models.squeezenet1_1(pretrained=True).features
-    # style_layers = (1, 4, 6, 7)
+    HEIGHT = WIDTH = args.im_size
+    val_dataset = CocoStuffDataSet(mode='val', supercategories=['animal'], height=HEIGHT, width=WIDTH, do_normalize=False)
+    content_image, background_mask = get_image(val_dataset, args.content_index)
+    foreground_mask = 1.0 - background_mask
 
     cnn = torchvision.models.vgg11(pretrained=True).features
     style_layers = (3, 8, 13, 18)
@@ -308,24 +322,26 @@ if __name__ == "__main__":
         param.requires_grad = False
 
     style_dir = '../styles/'
-    for style_image_name in os.listdir(style_dir):
-        if 'starry' not in style_image_name:
-            continue
-        style_image = PIL.Image.open(os.path.join(style_dir, style_image_name))
-        transfer_params = {
-            'content_image' : content_image,
-            'style_image' : style_image,
-            'content_mask': content_mask,
-            'image_size' : HEIGHT,
-            'style_size' : HEIGHT,
-            'content_layer' : 6,
-            'content_weight' : 1e-3, 
-            'style_layers' : style_layers,
-            'style_weights' : (20000, 500, 12, 1),
-            'tv_weight' : 1e-2,
-            'savename' : style_image_name,
-            'init_random' : False,
-            'mask_layer' : True,
-        }
+    style_background_name = args.background_style
+    style_foreground_name = args.foreground_style
+    
+    style_background_image = PIL.Image.open(os.path.join(style_dir, style_background_name))
+    style_foreground_image = PIL.Image.open(os.path.join(style_dir, style_foreground_name))
 
-        style_transfer(**transfer_params)
+    transfer_params = {
+        'content_image' : content_image,
+        'style_image' : style_background_image,
+        'content_mask': background_mask,
+        'image_size' : HEIGHT,
+        'content_layer' : 6,
+        'content_weight' : 1e-3, 
+        'style_layers' : style_layers,
+        'style_weights' : (20000, 500, 12, 1),
+        'tv_weight' : 1e-2,
+        'savename' : style_background_name,
+        'init_random' : False,
+        'mask_layer' : True,
+        'second_style_image' : style_foreground_image 
+    }
+
+    style_transfer(**transfer_params)

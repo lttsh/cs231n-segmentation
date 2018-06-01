@@ -20,15 +20,18 @@ class CocoStuffDataSet(dset.CocoDetection):
             annot_dir='../cocostuff/annotations/',
             mode='train', height=256, width=256,
             categories=None, supercategories=None,
+            do_normalize=True,
             ):
         if width is None or height is None:
             transform = transforms.ToTensor()
         else:
-            transform = transforms.Compose([
-                transforms.Resize((height, width)),
-                transforms.ToTensor(),
-                normalize(),
-            ])
+            t_list = [
+                    transforms.Resize((height, width)),
+                    transforms.ToTensor()
+                    ]
+            if do_normalize:
+                t_list.append(normalize())
+            transform = transforms.Compose(t_list)
         super().__init__(
             root=img_dir + mode + '2017/',
             annFile=annot_dir+'instances_'+mode+'2017.json',
