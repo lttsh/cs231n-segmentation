@@ -137,10 +137,11 @@ def average_grad_norm(model):
         norm_type = 2.0
         total_norm = 0
         n = 0.0
-        for p in model.parameters():
+        for name, p in model.named_parameters():
             n += 1
-            param_norm = p.grad.data.norm(norm_type)
-            total_norm += param_norm ** norm_type
+            if p.grad is not None:
+               param_norm = p.grad.data.norm(norm_type)
+               total_norm += param_norm ** norm_type
         total_norm = total_norm ** (1. / norm_type)
         average_norm = total_norm / n
         return average_norm
