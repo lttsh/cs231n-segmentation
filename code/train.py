@@ -292,7 +292,7 @@ class Trainer():
         Assumes gt_visual is of size B x H x W
         mask_pred is of size B x C x H x W
         returns C x C numpy array '''
-        self_.gen.eval()
+        self._gen.eval()
         numClasses = loader.dataset.numClasses
         confusion_mat = np.zeros((numClasses, numClasses))
         for data, mask_gt, gt_visual in loader:

@@ -101,7 +101,7 @@ if __name__ == "__main__":
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
 
     discriminator = None
-    generator = get_generator(args.generator_name, NUM_CLASSES, use_bn)
+    generator = get_generator(args.generator_name, NUM_CLASSES, args.use_bn)
     if args.train_gan:
         discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
 

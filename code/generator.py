@@ -11,7 +11,7 @@ def get_generator(generator_name, num_classes, use_bn=True):
         'SegNetSmall':SegNetSmall,
         'SegNet16':SegNet16
     }
-    return name_to_model[generator_name](num_classes, use_bn)
+    return name_to_model[generator_name](num_classes, use_bn=use_bn)
 
 class _DecoderBlock(nn.Module):
     """
@@ -171,6 +171,8 @@ class SegNet16(nn.Module):
         vgg = models.vgg16_bn(pretrained)
         if use_bn:
             print ("Using BatchNorm in decoder")
+        else:
+            print ("Not using batchnorm in decoder")
         features = list(vgg.features.children())
         # for feat in features:
         #   print(feat)
