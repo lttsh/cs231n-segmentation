@@ -120,7 +120,7 @@ class Trainer():
             iters: (int) number of iterations so far
         """
         return 'gen' if (not self.train_gan) or (iters % self.g_iters + self.d_iters) < self.g_iters else 'disc'
-        
+
     def train(self, num_epochs, print_every=100, eval_every=500):
         """
         Trains the model for a specified number of epochs
@@ -282,30 +282,28 @@ class Trainer():
             mIOU +=  torch.sum(fraction).item()
 
         return 1.0 / total * mIOU
-    
+
     def evaluate_discriminator_accuracy(self, loader):
         ''' Method to evaluate the discriminator's accuracy'''
-        pass 
-    
+        pass
+
     def get_confusion_matrix(self, loader):
-        ''' Method to get confusion matrix, returns C x C numpy array '''
+        ''' Method to get confusion matrix,
+        Assumes gt_visual is of size B x H x W
+        mask_pred is of size B x C x H x W
+        returns C x C numpy array '''
         self_.gen.eval()
         numClasses = loader.dataset.numClasses
         confusion_mat = np.zeros((numClasses, numClasses))
         for data, mask_gt, gt_visual in loader:
             data = data.to(self.device)
-            mask_pred = convert_to_mask(self._gen(data))
-            gt_labels = gt_visual.view((-1,)).type(dtype=torch.float32).numpy()
-            mask_pred = mask_pred.view((batch_size, numClasses, -1)).transpose(0, 1).to(self.device)
-            pred_labels = torch.argmax(mask_pred, axis=0).view((-1,)).numpy()
-            
+            mask_pred = convert_to_mask(self._gen(data)).numpy()
+            mask_pred = np.transpose(mask_pred, (1, 0, 2, 3)) # C x B x H x W
+            pred_labels = np.argmax(mask_pred, axis=0).reshape((-1,))
+            gt_labels = gt_visual.numpy().reshape((-1,))
             x = pred_labels + numClasses * gt_labels
             bincount_2d = np.bincount(x.astype(np.int32),
                                   minlength=numClasses ** 2)
             assert bincount_2d.size == numClasses ** 2
             conf = bincount_2d.reshape((numClasses, numClasses))
             return conf
-
-            
-            
-            
