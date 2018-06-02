@@ -35,9 +35,9 @@ if __name__ == "__main__":
                         help='size of images (default:128)')
     # Utility parameters
     parser.add_argument('--print_every', '-p', default=100, type=int,
-                        metavar='N', help='print frequency (default: 10)')
-    parser.add_argument('--eval_every', '-e', default=500, type=int,
-                        metavar='N', help='print frequency (default: 10)')
+                        metavar='N', help='print frequency (default: 100)')
+    parser.add_argument('--eval_every', '-e', default=300, type=int,
+                        metavar='N', help='eval frequency (default: 300)')
     parser.add_argument('--load_model', type=bool, default=False,
                         help='load model from checkpoint ')
     parser.add_argument('--load_iter', '-li', type=int, default=None,
@@ -49,16 +49,16 @@ if __name__ == "__main__":
                         help='decide whether to train GAN')
     parser.add_argument('--disc_lr', default=1e-5, type=float,
                         help='Learning rate for discriminator')
-    parser.add_argument('--gen_lr', default=1e-3, type=float,
+    parser.add_argument('--gen_lr', default=1e-4, type=float,
                         help='Learning rate for generator')
     parser.add_argument('--weight_clip', default=0.01, type=float,
                         help='Weight clipping for W-GAN loss')
     parser.add_argument('--gan_reg', default=1e-2, type=float,
                         help='Regularization strength from gan')
-    parser.add_argument('--beta1', type=float,
-                        help='beta1 parameter to use for Adam optimizers')
     parser.add_argument('-d', '--d_iters', default=5, type=int,
                         help='Number of training iterations for discriminator within one loop')
+    parser.add_argument('-g', '--g_iters', default=5, type=int,
+                        help='Number of training iterations for generator within one loop')
     parser.add_argument('--generator_name', default='SegNet16', type=str,
                         help='Name of generator model to run')
 
@@ -83,7 +83,6 @@ if __name__ == "__main__":
             args_dict['load_model'] = True
             args_dict['experiment_name'] = args.experiment_name
             args_dict['train_gan'] = args.train_gan
-            args_dict['beta1'] = args.beta1
             current_dict = vars(args)
             for (key, value) in args_dict.items():
                 current_dict[key] = value
@@ -105,8 +104,8 @@ if __name__ == "__main__":
         discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
 
     trainer = Trainer(generator, discriminator, train_loader, val_loader, \
-                    gan_reg=args.gan_reg, d_iters=args.d_iters, \
-                    weight_clip= args.weight_clip, disc_lr=args.disc_lr, gen_lr=args.gen_lr, beta1=args.beta1,
+                    gan_reg=args.gan_reg, d_iters=args.d_iters, g_iters=args.g_iters,\
+                    weight_clip= args.weight_clip, disc_lr=args.disc_lr, gen_lr=args.gen_lr,
                     train_gan= args.train_gan, \
                     experiment_dir=experiment_dir, resume=args.load_model, load_iter=args.load_iter)
 
@@ -115,4 +114,5 @@ if __name__ == "__main__":
     elif args.mode == 'eval':
         assert(args.load_model), "Need to load model to evaluate it"
         # just do evaluation
-        print ('mIOU {}'.format(trainer.evaluate_meanIOU(val_loader, debug=True)))
+        print (trainer.get_confusion_matrix(val_loader))
+        print ('mIOU {}'.format(trainer.evaluate_meanIOU(val_loader)))
