@@ -4,20 +4,20 @@ import torch.nn.functional as F
 import torchvision.models as models
 from utils import *
 
-def get_generator(generator_name, num_classes):
+def get_generator(generator_name, num_classes, use_bn=True):
     name_to_model = {
         'VerySmallNet':VerySmallNet,
         'SegNetSmaller':SegNetSmaller,
         'SegNetSmall':SegNetSmall,
         'SegNet16':SegNet16
     }
-    return name_to_model[generator_name](num_classes)
+    return name_to_model[generator_name](num_classes, use_bn)
 
 class _DecoderBlock(nn.Module):
     """
     CNN block for the decoder.
     """
-    def __init__(self, in_channels, out_channels, num_conv_layers):
+    def __init__(self, in_channels, out_channels, num_conv_layers, use_bn=True):
         """
         Args:
             in_channels: (int) number of input channels to this block
@@ -30,10 +30,12 @@ class _DecoderBlock(nn.Module):
         layers = [
             nn.ConvTranspose2d(in_channels, in_channels, kernel_size=2, stride=2),
             nn.Conv2d(in_channels, middle_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(middle_channels),
-            # nn.LeakyReLU()
-            nn.ReLU()
         ]
+
+        if use_bn:
+            layers += [nn.BatchNorm2d(middle_channels)]
+        layers += [nn.ReLU()]
+
         layers += [
                     nn.Conv2d(middle_channels, middle_channels, kernel_size=3, padding=1),
                     nn.BatchNorm2d(middle_channels),
@@ -42,10 +44,10 @@ class _DecoderBlock(nn.Module):
                   ] * (num_conv_layers - 2)
         layers += [
             nn.Conv2d(middle_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(out_channels), 
-#             nn.LeakyReLU(),
-            nn.ReLU()
         ]
+        if use_bn:
+            layers += [nn.BatchNorm2d(out_channels)]
+        layers += [nn.ReLU()]
         self.decode = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -72,7 +74,7 @@ class SegNetSmaller(nn.Module):
     """
     Smaller implementation of SegNet based off of vgg-11
     """
-    def __init__(self, num_classes, pretrained=True):
+    def __init__(self, num_classes, pretrained=True, use_bn=True):
         """
         Args:
             num_classes: (int) number of output classes to be predicted
@@ -86,14 +88,14 @@ class SegNetSmaller(nn.Module):
         self.enc1 = nn.Sequential(*features[:3])  # C_out = 64
         self.enc2 = nn.Sequential(*features[3:6])  # C_out = 128
         self.enc3 = nn.Sequential(*features[6:11])  # C_out = 256
-        
+
         self.dec3 = nn.Sequential(
             *([nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)] +
               [nn.Conv2d(128, 128, kernel_size=3, padding=1),
                nn.ReLU()] * 2)
         )
-        self.dec2 = _DecoderBlock(256, 64, 2)
-        self.dec1 = _DecoderBlock(128, num_classes, 2)
+        self.dec2 = _DecoderBlock(256, 64, 2, use_bn)
+        self.dec1 = _DecoderBlock(128, num_classes, 2, use_bn)
         initialize_weights(self.dec3, self.dec2, self.dec1)
 
     def forward(self, x):
@@ -110,7 +112,7 @@ class SegNetSmall(nn.Module):
     """
     Smaller implementation of SegNet based off of vgg-11
     """
-    def __init__(self, num_classes, pretrained=True):
+    def __init__(self, num_classes, pretrained=True, use_bn=True):
         """
         Args:
             num_classes: (int) number of output classes to be predicted
@@ -159,7 +161,7 @@ class SegNet16(nn.Module):
     PyTorch implementation of the SegNet architecture that uses 13 encoder-decoder layers.
 
     """
-    def __init__(self, num_classes, pretrained=True):
+    def __init__(self, num_classes, pretrained=True, use_bn=True):
         """
         Args:
             num_classes: (int) number of output classes to be predicted
@@ -167,7 +169,8 @@ class SegNet16(nn.Module):
         """
         super().__init__()
         vgg = models.vgg16_bn(pretrained)
-
+        if use_bn:
+            print ("Using BatchNorm in decoder")
         features = list(vgg.features.children())
         # for feat in features:
         #   print(feat)
@@ -183,10 +186,10 @@ class SegNet16(nn.Module):
               [nn.Conv2d(512, 512, kernel_size=3, padding=1),
                nn.LeakyReLU()] * 2)
         )
-        self.dec4 = _DecoderBlock(1024, 256, 2) # Dec4
-        self.dec3 = _DecoderBlock(512, 128, 2) # Dec3
-        self.dec2 = _DecoderBlock(256, 64, 2)# Dec2
-        self.dec1 = _DecoderBlock(128, num_classes, 2) #Dec 1
+        self.dec4 = _DecoderBlock(1024, 256, 2, use_bn) # Dec4
+        self.dec3 = _DecoderBlock(512, 128, 2, use_bn) # Dec3
+        self.dec2 = _DecoderBlock(256, 64, 2, use_bn)# Dec2
+        self.dec1 = _DecoderBlock(128, num_classes, 2, use_bn) #Dec 1
         initialize_weights(self.dec5, self.dec4, self.dec3, self.dec2, self.dec1)
 
     def forward(self, x):

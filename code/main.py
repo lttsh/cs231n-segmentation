@@ -15,7 +15,7 @@ def by_pixel_weights(dataloader, savename):
     for _, masks, _ in dataloader:
         masks = masks.float().to(device)
         counts += (masks.view((num_classes, -1))).sum(dim=1)
-    weights = counts.reciprocal()   
+    weights = counts.reciprocal()
     weights /= weights.sum()
 
     print("Saving weights to ", savename)
@@ -61,6 +61,8 @@ if __name__ == "__main__":
                         help='Number of training iterations for generator within one loop')
     parser.add_argument('--generator_name', default='SegNet16', type=str,
                         help='Name of generator model to run')
+    parser.add_argument('--use_bn', default='True', type=bool,
+                        help='Use batch norm in Decoder block')
 
     args = parser.parse_args()
 
@@ -99,7 +101,7 @@ if __name__ == "__main__":
     segmentation_shape = (NUM_CLASSES, HEIGHT, WIDTH)
 
     discriminator = None
-    generator = get_generator(args.generator_name, NUM_CLASSES)
+    generator = get_generator(args.generator_name, NUM_CLASSES, use_bn)
     if args.train_gan:
         discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
 
