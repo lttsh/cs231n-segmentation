@@ -259,7 +259,12 @@ class Trainer():
             'true_pos': Cx1 numpy array that totals the number of true positives per class
             'total_pix': Cx1 numpy array that totals the number of pixels per class
         '''
-        numClasses = total_pix.shape[0]
+        numClasses = labels.size()[1]
+        if state is None:
+            state = {
+                'true_pos': np.zeros(numClasses),
+                'total_pix': np.zeros(numClasses)
+            }
         true_pos = state['true_pos']
         total_pix = state['total_pix']
         positives = preds * labels # B x C x H x W
