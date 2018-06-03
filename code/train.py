@@ -171,10 +171,12 @@ class Trainer():
                         print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))
                         print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * (d_loss + g_loss) + segmentation_loss))
                 if eval_every > 0 and total_iters % eval_every == 0:
-                    val_mIOU = self.evaluate_meanIOU(self._val_loader)
+                    val_pixel_acc, val_mIOU = self.evaluate(self._val_loader, ignore_background=True, num_batches=20)
+#                     val_mIOU = self.evaluate_meanIOU(self._val_loader)
                     if self.best_mIOU < val_mIOU:
                         self.best_mIOU = val_mIOU
                     self.save_model(iter, total_iters, epoch, self.best_mIOU, self.best_mIOU == val_mIOU)
+                    writer.add_scalar('Val/PixelAcc', val_pixel_acc, total_iters)
                     writer.add_scalar('Val/MeanIOU', val_mIOU, total_iters)
                     print("Validation Mean IOU at iteration {}/{}: {}".format(iter, epoch_len - 1, val_mIOU))
                 iter += 1
@@ -229,59 +231,110 @@ class Trainer():
     '''
     Evaluation methods
     '''
-    def evaluate_pixel_accuracy(self, loader, ignore_background=False):
-        true_pos = 0
-        total_pix = 0
-        for mini_batch_data, mini_batch_labels, _ in loader:
-            mini_batch_data = mini_batch_data.to(self.device)
-            mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32)
-            mini_batch_prediction = convert_to_mask(self._gen(mini_batch_data)).to(self.device)
-            ## This assumes mini_batch_pred and mini_batch labels are of size B x C x H x W
-            print (mini_batch_prediction.size(), mini_batch_labels.size())
-
+    def evaluate(self, loader, ignore_background=True, num_batches=None):
+        num_iters = 0
+        num_classes = loader.dataset.numClasses
+        metrics = [calc_pixel_accuracy, calc_mean_IoU]
+        states = [None] * len(metrics)
+        self._gen.eval()
+        for data, labels, _ in loader:
+            data = data.to(self.device)
+            labels = labels.float().to(self.device)
+            preds = convert_to_mask(self._gen(data)).to(self.device)
             if ignore_background:
-                mini_batch_prediction, mini_batch_labels = mini_batch_prediction[:,:-1,:,:], mini_batch_labels[:,:-1,:,:]
-            true_pos += torch.sum(mini_batch_prediction * mini_batch_labels).item()
-            print (true_pos)
-            total_pix += torch.sum(mini_batch_labels).item()
-        print (true_pos)
-        return float(true_pos) / (total_pix + 1e-12)
+                labels = labels.narrow(1, 0, num_classes-1)
+                preds = preds.narrow(1, 0, num_classes-1)
+            for i, metric in enumerate(metrics):
+                states[i] = metric(labels, preds, states[i])
+            num_iters += 1
+            if num_batches is not None and num_iters >= num_batches:
+                break
+        return (s['final'] for s in states)
+    
+    def calc_pixel_accuracy(labels, preds, state):
+        if state is None:
+            state = {
+                    'true_pos' = 0.0,
+                    'total_pix' = 0.0,
+                    }
+        state['true_pos'] += torch.sum(preds * labels).item()
+        state['total_pix'] += torch.sum(labels).item()
+        state['final'] = float(state['true_pos']) / (state['total_pix'] + 1e-12)
+        return states
+    
+    def calc_mean_IoU(labels, preds, state):
+        if state is None:
+            state = {
+                    'total' = 0.0,
+                    'mIoU' = 0.0,
+                    }
+        batch_size = labels.size()[0]
+        state['total'] += batch_size
+        total_pix = torch.sum(labels, 2)
+        class_present = (total_pix > 0).float() # Ignore class that was not originally present in the groundtruth
+        true_positive = torch.sum(mask_gt * mask_pred, 2)
+        false_positive = torch.sum(mask_pred, 2) - true_positive
+        numerator = torch.sum(class_present * (true_positive / (total_pix + false_positive + 1e-12)), 1)
+        denominator = class_present.sum(1)
+        fraction = (numerator / denominator).masked_select(denominator > 0)
+        state['mIoU'] +=  torch.sum(fraction).item()
+        state['final'] = state['mIoU'] / state['total']
+        return state
+    
+    
+#     def evaluate_pixel_accuracy(self, loader, ignore_background=False):
+#         true_pos = 0
+#         total_pix = 0
+#         for mini_batch_data, mini_batch_labels, _ in loader:
+#             mini_batch_data = mini_batch_data.to(self.device)
+#             mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32)
+#             mini_batch_prediction = convert_to_mask(self._gen(mini_batch_data)).to(self.device)
+#             ## This assumes mini_batch_pred and mini_batch labels are of size B x C x H x W
+#             print (mini_batch_prediction.size(), mini_batch_labels.size())
+
+#             if ignore_background:
+#                 mini_batch_prediction, mini_batch_labels = mini_batch_prediction[:,:-1,:,:], mini_batch_labels[:,:-1,:,:]
+#             true_pos += torch.sum(mini_batch_prediction * mini_batch_labels).item()
+#             print (true_pos)
+#             total_pix += torch.sum(mini_batch_labels).item()
+#         print (true_pos)
+#         return float(true_pos) / (total_pix + 1e-12)
 
     def evaluate_pixel_mean_acc(self, loader):
         pix_acc = self.evaluate_pixel_accuracy(loader)
         return 1.0 / loader.dataset.numClasses * pix_acc
 
-    def evaluate_meanIOU(self, loader, ignore_background=True):
-        print ("Evaluating mean IOU")
-        self._gen.eval()
-        if self._disc is not None:
-            self._disc.eval()
-        numClasses = loader.dataset.numClasses
-        total = 0
-        mIOU = 0.0
-        for data, mask_gt, gt_visual in loader:
-            data = data.to(self.device)
-            batch_size = data.size()[0]
-            total += batch_size
-            mask_pred = convert_to_mask(self._gen(data))
-            mask_gt = mask_gt.view((batch_size, numClasses, -1)).type(dtype=torch.float32).to(self.device)
-            mask_pred = mask_pred.view((batch_size, numClasses, -1)).to(self.device)
+#     def evaluate_meanIOU(self, loader, ignore_background=True):
+#         print ("Evaluating mean IOU")
+#         self._gen.eval()
+#         if self._disc is not None:
+#             self._disc.eval()
+#         numClasses = loader.dataset.numClasses
+#         total = 0
+#         mIOU = 0.0
+#         for data, mask_gt, gt_visual in loader:
+#             data = data.to(self.device)
+#             batch_size = data.size()[0]
+#             total += batch_size
+#             mask_pred = convert_to_mask(self._gen(data))
+#             mask_gt = mask_gt.view((batch_size, numClasses, -1)).type(dtype=torch.float32).to(self.device)
+#             mask_pred = mask_pred.view((batch_size, numClasses, -1)).to(self.device)
 
-            if ignore_background:
-                mask_gt = mask_gt.narrow(1, 0, numClasses-1)
-                mask_pred = mask_pred.narrow(1, 0, numClasses-1)
-                #mask_gt, mask_pred = mask_gt[:,:-1,:], mask_pred[:,:-1,:]
+#             if ignore_background:
+#                 mask_gt = mask_gt.narrow(1, 0, numClasses-1)
+#                 mask_pred = mask_pred.narrow(1, 0, numClasses-1)
+#                 #mask_gt, mask_pred = mask_gt[:,:-1,:], mask_pred[:,:-1,:]
 
-            totalpix = torch.sum(mask_gt, 2)
-            classPresent = (totalpix > 0).type(dtype=torch.float32) # Ignore class that was not originally present in the groundtruth
-            truepositive = torch.sum(mask_gt * mask_pred, 2)
-            falsepos = torch.sum(mask_pred, 2) - truepositive
-            numerator = torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-12)), 1)
-            denominator = classPresent.sum(1)
-            fraction = (numerator / denominator).masked_select(denominator > 0)
-            mIOU +=  torch.sum(fraction).item()
+#             totalpix = torch.sum(mask_gt, 2)
+#             classPresent = (totalpix > 0).type(dtype=torch.float32) # Ignore class that was not originally present in the groundtruth
+#             truepositive = torch.sum(mask_gt * mask_pred, 2)
+#             falsepos = torch.sum(mask_pred, 2) - truepositive
+#             numerator = torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-12)), 1)
+#             denominator = classPresent.sum(1)
+#             fraction = (numerator / denominator).masked_select(denominator > 0)
+#             mIOU +=  torch.sum(fraction).item()
 
-        return 1.0 / total * mIOU
+#         return 1.0 / total * mIOU
 
     def evaluate_discriminator_accuracy(self, loader):
         ''' Method to evaluate the discriminator's accuracy'''
