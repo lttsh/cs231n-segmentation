@@ -262,11 +262,9 @@ def rescale(x):
     x_rescaled = (x - low) / (high - low)
     return x_rescaled
 
-def get_image(dataset, idx):
-    # 4509, 552
-    
+def get_image_from_dataset(dataset, idx):    
     img, masks, mask_max = dataset[idx]
-    channel = np.max(mask_max)  # get the background class
+    channel = np.max(mask_max)  # get the background class (or if no background, class with highest index)
     img = PIL.Image.fromarray(np.uint8(img.numpy().transpose(1, 2, 0)*255.))
     mask = masks[channel]
     return img, mask
