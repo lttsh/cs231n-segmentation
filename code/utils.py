@@ -194,7 +194,7 @@ def visualize_conf(matrix, idToCat):
     ax = fig.add_subplot(111)
     ax.set_aspect(1)
     normed_conf = matrix / np.expand_dims(np.sum(matrix, axis= 1), axis=-1)
-    res = ax.imshow(normed_conf, cmap=plt.cm.jet,
+    res = ax.imshow(normed_conf,
                     interpolation='nearest')
 
     width, height = matrix.shape

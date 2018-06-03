@@ -251,6 +251,29 @@ class Trainer():
         pix_acc = self.evaluate_pixel_accuracy(loader)
         return 1.0 / loader.dataset.numClasses * pix_acc
 
+    def evaluate_per_class_pixel_acc(self, loader):
+        ''' Evaluates per class pixel accuracy from loader
+        Return C-Tensor with pixel accuracy per class.
+        '''
+    numClasses = loader.dataset.numClasses
+    true_pos = np.zeros(numClasses)
+    total_pix = np.zeros(numClasses)
+    for mini_batch_data, mini_batch_labels, _ in loader:
+        mini_batch_data = mini_batch_data.to(self.device)
+        mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32)
+        mini_batch_prediction = convert_to_mask(self._gen(mini_batch_data)).to(self.device)
+        ## This assumes mini_batch_pred and mini_batch labels are of size B x C x H x W
+        print (mini_batch_prediction.size(), mini_batch_labels.size())
+
+        if ignore_background:
+            mini_batch_prediction, mini_batch_labels = mini_batch_prediction[:,:-1,:,:], mini_batch_labels[:,:-1,:,:]
+        positives = mini_batch_prediction * mini_batch_labels # B x C x H x W
+        positives = positives.transpose(0, 1).view((numClasses, -1)) # C x -1
+        true_pos += torch.sum(positives, 1).numpy()
+        allexamples = mini_batch_labels.transpose(0, 1).view((numClasses, -1))
+        total_pix += torch.sum(allexamples, 1).numpy()
+     return true_pos / total_pix
+
     def evaluate_meanIOU(self, loader, ignore_background=True):
         print ("Evaluating mean IOU")
         self._gen.eval()
