@@ -29,7 +29,7 @@ if __name__ == "__main__":
     # Training parameters
     parser.add_argument('--epochs', default=20, type=int, metavar='N',
                         help='number of total epochs to run')
-    parser.add_argument('-b', '--batch_size', default=8, type=int,
+    parser.add_argument('-b', '--batch_size', default=64, type=int,
                         metavar='N', help='mini-batch size (default: 8)')
     parser.add_argument('-s', '--size', default=128, type=int,
                         help='size of images (default:128)')
@@ -53,7 +53,7 @@ if __name__ == "__main__":
                         help='Learning rate for generator')
     parser.add_argument('--weight_clip', default=0.01, type=float,
                         help='Weight clipping for W-GAN loss')
-    parser.add_argument('--gan_reg', default=1e-2, type=float,
+    parser.add_argument('--gan_reg', default=1.0, type=float,
                         help='Regularization strength from gan')
     parser.add_argument('-d', '--d_iters', default=5, type=int,
                         help='Number of training iterations for discriminator within one loop')
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     HEIGHT = WIDTH = args.size
     val_dataset = CocoStuffDataSet(mode='val', supercategories=['animal'], height=HEIGHT, width=WIDTH, do_normalize=False)
     train_dataset = CocoStuffDataSet(mode='train', supercategories=['animal'], height=HEIGHT, width=WIDTH, do_normalize=False)
-    val_loader = DataLoader(val_dataset, args.batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, args.batch_size, shuffle=False)
     train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True)
     NUM_CLASSES = train_dataset.numClasses
     print ("Number of classes: {}".format(NUM_CLASSES))

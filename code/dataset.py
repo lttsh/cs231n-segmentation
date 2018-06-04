@@ -20,7 +20,7 @@ class CocoStuffDataSet(dset.CocoDetection):
             annot_dir='../cocostuff/annotations/',
             mode='train', height=256, width=256,
             categories=None, supercategories=None,
-            do_normalize=True,
+            do_normalize=False,
             ):
         if width is None or height is None:
             transform = transforms.ToTensor()
@@ -122,9 +122,10 @@ class CocoStuffDataSet(dset.CocoDetection):
             ids = self.coco.getImgIds(catIds=catId)
             print ("%f images contain category %d" % (float(len(ids))/float(len(self)), catId))
 
-    def display(self, img_id):
+    def display(self, img_id, do_de_normalize=False):
         img, _, masks = self[img_id]
-        img = de_normalize(img)
+        if do_de_normalize:
+            img = de_normalize(img)
         display_image = np.transpose(img.numpy(), (1, 2, 0))
         plt.figure()
         plt.subplot(121)

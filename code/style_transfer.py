@@ -181,7 +181,7 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, co
     img.requires_grad_()
     
     # Set up optimization hyperparameters
-    initial_lr = 0.1
+    initial_lr = 3e-2
 
     # Note that we are optimizing the pixel values of the image by passing
     # in the img Torch tensor, whose requires_grad flag is set to True
@@ -196,6 +196,7 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, co
         #     plt.imshow(m)
         #     plt.show()
         second_feature_masks = get_soft_masks(1.0 - content_mask, cnn, style_layers)
+    loss_list = []
     for t in range(max_iters):
 #         if t < 390:
 #             img.data.clamp_(-1.5, 1.5)
@@ -212,7 +213,7 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, co
             s_loss += second_s_loss
         t_loss = tv_loss(img, tv_weight)
         loss = c_loss + s_loss + t_loss
-        
+        loss_list.append(loss.item())
         loss.backward()
 
         # Perform gradient descents on our image values
@@ -220,7 +221,7 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, co
 #             optimizer = torch.optim.Adam([img], lr=decayed_lr)
         optimizer.step()
 
-#         if t % 10 == 0:
+#         if t % 100 == 0:
 #             print("Iteration {},\tLoss: {},\tContent: {},\tStyle: {},\tTV: {}".format(t, loss, c_loss, s_loss, t_loss))
 
     img = np.asarray(deprocess(img.data.cpu()), dtype=np.uint8)
@@ -228,7 +229,7 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, co
     content_mask = np.expand_dims(content_mask, axis=-1)
     final_img = img.astype(np.uint8)
     final_img = PIL.Image.fromarray(final_img)
-    return final_img, loss
+    return final_img, loss, loss_list
 
 # The setup functions
 # SQUEEZENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)

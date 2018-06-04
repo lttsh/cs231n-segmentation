@@ -27,6 +27,7 @@ class Trainer():
         print ("Using device %s" % self.device)
         self._gen = generator.to(self.device)
         self.train_gan = train_gan
+        beta1 = 0.5
         if discriminator is not None and self.train_gan:
             print ("Training GAN")
             self._disc = discriminator.to(self.device)
@@ -42,7 +43,7 @@ class Trainer():
         self._val_loader = val_loader
 
         self._MCEcriterion = nn.CrossEntropyLoss() # self._train_loader.dataset.weights.to(self.device)) # Criterion for segmentation loss
-        beta1 = 0.9 if self.train_gan else 0.5
+        
         self._genoptimizer = optim.Adam(self._gen.parameters(), lr=gen_lr, betas=(beta1, 0.999)) # Generator optimizer
         self.gan_reg = gan_reg
         self.d_iters = d_iters
@@ -88,15 +89,16 @@ class Trainer():
             self._discoptimizer.zero_grad()
             scores_false = self._disc(mini_batch_data, converted_mask) # (B,)
             scores_true = self._disc(mini_batch_data, mini_batch_labels) # (B,)
+            true_positive, true_negative = true_positive_and_negative(scores_true.detach().cpu(), scores_false.detach().cpu())
             # d_loss = torch.mean(scores_false) - torch.mean(scores_true)
             d_loss = self._BCEcriterion(scores_false, smooth_false_labels) + self._BCEcriterion(scores_true, smooth_true_labels)
             d_loss.backward()
-            torch.nn.utils.clip_grad_norm(self._disc.parameters(), 1.0)
+            d_grad_norm = torch.nn.utils.clip_grad_norm_(self._disc.parameters(), 1.0)
             self._discoptimizer.step()
             # W-GAN weight clipping
             # for p in self._disc.parameters():
             #     p.data.clamp_(-self.weight_clip, self.weight_clip)
-            return d_loss, None
+            return d_loss, d_grad_norm, true_positive, true_negative
         if mode == 'gen':
             self._genoptimizer.zero_grad()
             g_loss = 0
@@ -109,9 +111,9 @@ class Trainer():
             segmentation_loss = self._MCEcriterion(gen_out, mini_batch_labels_flat)
             gen_loss = segmentation_loss + self.gan_reg * g_loss
             gen_loss.backward()
-            torch.nn.utils.clip_grad_norm(self._gen.parameters(), 1.0)
+            g_grad_norm = torch.nn.utils.clip_grad_norm_(self._gen.parameters(), 1.0)
             self._genoptimizer.step()
-            return g_loss, segmentation_loss
+            return g_loss, segmentation_loss, g_grad_norm
 
     def which_to_train(self, iters):
         """
@@ -119,7 +121,7 @@ class Trainer():
         Input:
             iters: (int) number of iterations so far
         """
-        return 'gen' if (not self.train_gan) or (iters % self.g_iters + self.d_iters) < self.g_iters else 'disc'
+        return 'gen' if (not self.train_gan) or (iters % (self.g_iters + self.d_iters)) < self.g_iters else 'disc'
 
     def train(self, num_epochs, print_every=100, eval_every=500):
         """
@@ -148,22 +150,22 @@ class Trainer():
                 mode = self.which_to_train(total_iters)
                 if mode == 'disc':
                     self._disc.train()
-                    d_loss, _ = self._train_batch(
+                    d_loss, d_grad_norm, true_positive, true_negative = self._train_batch(
                             mini_batch_data, mini_batch_labels, mini_batch_labels_flat, mode)
+                    writer.add_scalar('Train/DiscriminatorLoss', d_loss, total_iters)
+                    writer.add_scalar('Train/DiscriminatorTotalGradNorm', d_grad_norm, total_iters)
+                    writer.add_scalar('Train/DiscriminatorTruePositive', true_positive, total_iters)
+                    writer.add_scalar('Train/DiscriminatorTrueNegative', true_negative, total_iters)
                 else:
                     self._gen.train()
-                    g_loss, segmentation_loss = self._train_batch(
+                    g_loss, segmentation_loss, g_grad_norm = self._train_batch(
                             mini_batch_data, mini_batch_labels, mini_batch_labels_flat, mode)
+                    writer.add_scalar('Train/GeneratorTotalGradNorm', g_grad_norm, total_iters)
                 writer.add_scalar('Train/SegmentationLoss', segmentation_loss, total_iters)
-                gen_avg_grad_norm = average_grad_norm(self._gen)
-                writer.add_scalar('Train/GeneratorAvgGradNorm', gen_avg_grad_norm, total_iters)
                 if self._disc is not None and self.train_gan:
                     writer.add_scalar('Train/GeneratorLoss', g_loss, total_iters)
-                    writer.add_scalar('Train/DiscriminatorLoss', d_loss, total_iters)
                     writer.add_scalar('Train/GanLoss', d_loss + g_loss, total_iters)
                     writer.add_scalar('Train/TotalLoss', self.gan_reg * (d_loss + g_loss) + segmentation_loss, total_iters)
-                    disc_avg_grad_norm = average_grad_norm(self._disc)
-                    writer.add_scalar('Train/DiscriminatorAvgGradNorm', disc_avg_grad_norm, total_iters)
                 if total_iters % print_every == 0:
                     if self._disc is None or not self.train_gan:
                         print ('Loss at iteration {}/{}: {}'.format(iter, epoch_len - 1, segmentation_loss))
@@ -171,13 +173,14 @@ class Trainer():
                         print("D_loss {}, G_loss {}, Seg loss {} at iteration {}/{}".format(d_loss, g_loss, segmentation_loss, iter, epoch_len - 1))
                         print("Overall loss at iteration {} / {}: {}".format(iter, epoch_len - 1, self.gan_reg * (d_loss + g_loss) + segmentation_loss))
                 if eval_every > 0 and total_iters % eval_every == 0:
-                    val_pixel_acc, val_mIOU = self.evaluate(self._val_loader, ignore_background=True, num_batches=20)
-#                     val_mIOU = self.evaluate_meanIOU(self._val_loader)
+                    val_pixel_acc, val_mIOU, per_class_accuracy = self.evaluate(self._val_loader, total_iters, ignore_background=True)
                     if self.best_mIOU < val_mIOU:
                         self.best_mIOU = val_mIOU
                     self.save_model(iter, total_iters, epoch, self.best_mIOU, self.best_mIOU == val_mIOU)
                     writer.add_scalar('Val/PixelAcc', val_pixel_acc, total_iters)
                     writer.add_scalar('Val/MeanIOU', val_mIOU, total_iters)
+                    writer.add_scalar('Val/PerClassAcc', per_class_accuracy, total_iters)
+
                     print("Validation Mean IOU at iteration {}/{}: {}".format(iter, epoch_len - 1, val_mIOU))
                 iter += 1
                 total_iters += 1
@@ -228,19 +231,34 @@ class Trainer():
         else:
             print("=> no checkpoint found at '{}'".format(save_path))
 
+    
     '''
     Evaluation methods
     '''
-    def evaluate(self, loader, ignore_background=True, num_batches=None):
+    def evaluate(self, loader, curr_iter, ignore_background=True, num_batches=None, save_mask=True):
         num_iters = 0
         num_classes = loader.dataset.numClasses
-        metrics = [calc_pixel_accuracy, calc_mean_IoU]
+        metrics = [calc_pixel_accuracy, calc_mean_IoU, per_class_pixel_acc]
         states = [None] * len(metrics)
         self._gen.eval()
-        for data, labels, _ in loader:
+        for data, labels, gt_visual in loader:
             data = data.to(self.device)
             labels = labels.float().to(self.device)
-            preds = convert_to_mask(self._gen(data)).to(self.device)
+            preds = convert_to_mask(self._gen(data)).to(self.device) # B x C x H x W
+            
+            # if save_mask:
+            #  save_dir = os.path.join(self.experiment_dir, str(curr_iter))
+            #  if not os.path.exists(save_dir):
+            #    os.makedirs(save_dir)
+            #    
+            #  for i in range(len(data)):
+            #    img = de_normalize(data[i].detach().cpu().numpy())
+            #    gt_mask = gt_visual[i].detach().cpu().numpy()
+            #    pred_mask = np.argmax(preds[i].detach().cpu().numpy(), axis=0)
+            #    display_image = np.transpose(img, (1, 2, 0))
+            #    save_to_file(pred_mask, display_image, gt_mask, i, save_dir)
+            #  save_mask = False
+            
             if ignore_background:
                 labels = labels.narrow(1, 0, num_classes-1)
                 preds = preds.narrow(1, 0, num_classes-1)
@@ -250,95 +268,6 @@ class Trainer():
             if num_batches is not None and num_iters >= num_batches:
                 break
         return (s['final'] for s in states)
-    
-    def calc_pixel_accuracy(labels, preds, state):
-        if state is None:
-            state = {
-                    'true_pos' = 0.0,
-                    'total_pix' = 0.0,
-                    }
-        state['true_pos'] += torch.sum(preds * labels).item()
-        state['total_pix'] += torch.sum(labels).item()
-        state['final'] = float(state['true_pos']) / (state['total_pix'] + 1e-12)
-        return states
-    
-    def calc_mean_IoU(labels, preds, state):
-        if state is None:
-            state = {
-                    'total' = 0.0,
-                    'mIoU' = 0.0,
-                    }
-        batch_size = labels.size()[0]
-        state['total'] += batch_size
-        total_pix = torch.sum(labels, 2)
-        class_present = (total_pix > 0).float() # Ignore class that was not originally present in the groundtruth
-        true_positive = torch.sum(mask_gt * mask_pred, 2)
-        false_positive = torch.sum(mask_pred, 2) - true_positive
-        numerator = torch.sum(class_present * (true_positive / (total_pix + false_positive + 1e-12)), 1)
-        denominator = class_present.sum(1)
-        fraction = (numerator / denominator).masked_select(denominator > 0)
-        state['mIoU'] +=  torch.sum(fraction).item()
-        state['final'] = state['mIoU'] / state['total']
-        return state
-    
-    
-#     def evaluate_pixel_accuracy(self, loader, ignore_background=False):
-#         true_pos = 0
-#         total_pix = 0
-#         for mini_batch_data, mini_batch_labels, _ in loader:
-#             mini_batch_data = mini_batch_data.to(self.device)
-#             mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32)
-#             mini_batch_prediction = convert_to_mask(self._gen(mini_batch_data)).to(self.device)
-#             ## This assumes mini_batch_pred and mini_batch labels are of size B x C x H x W
-#             print (mini_batch_prediction.size(), mini_batch_labels.size())
-
-#             if ignore_background:
-#                 mini_batch_prediction, mini_batch_labels = mini_batch_prediction[:,:-1,:,:], mini_batch_labels[:,:-1,:,:]
-#             true_pos += torch.sum(mini_batch_prediction * mini_batch_labels).item()
-#             print (true_pos)
-#             total_pix += torch.sum(mini_batch_labels).item()
-#         print (true_pos)
-#         return float(true_pos) / (total_pix + 1e-12)
-
-    def evaluate_pixel_mean_acc(self, loader):
-        pix_acc = self.evaluate_pixel_accuracy(loader)
-        return 1.0 / loader.dataset.numClasses * pix_acc
-
-#     def evaluate_meanIOU(self, loader, ignore_background=True):
-#         print ("Evaluating mean IOU")
-#         self._gen.eval()
-#         if self._disc is not None:
-#             self._disc.eval()
-#         numClasses = loader.dataset.numClasses
-#         total = 0
-#         mIOU = 0.0
-#         for data, mask_gt, gt_visual in loader:
-#             data = data.to(self.device)
-#             batch_size = data.size()[0]
-#             total += batch_size
-#             mask_pred = convert_to_mask(self._gen(data))
-#             mask_gt = mask_gt.view((batch_size, numClasses, -1)).type(dtype=torch.float32).to(self.device)
-#             mask_pred = mask_pred.view((batch_size, numClasses, -1)).to(self.device)
-
-#             if ignore_background:
-#                 mask_gt = mask_gt.narrow(1, 0, numClasses-1)
-#                 mask_pred = mask_pred.narrow(1, 0, numClasses-1)
-#                 #mask_gt, mask_pred = mask_gt[:,:-1,:], mask_pred[:,:-1,:]
-
-#             totalpix = torch.sum(mask_gt, 2)
-#             classPresent = (totalpix > 0).type(dtype=torch.float32) # Ignore class that was not originally present in the groundtruth
-#             truepositive = torch.sum(mask_gt * mask_pred, 2)
-#             falsepos = torch.sum(mask_pred, 2) - truepositive
-#             numerator = torch.sum(classPresent * (truepositive / (totalpix + falsepos + 1e-12)), 1)
-#             denominator = classPresent.sum(1)
-#             fraction = (numerator / denominator).masked_select(denominator > 0)
-#             mIOU +=  torch.sum(fraction).item()
-
-#         return 1.0 / total * mIOU
-
-    def evaluate_discriminator_accuracy(self, loader):
-        ''' Method to evaluate the discriminator's accuracy'''
-        pass
 
     def get_confusion_matrix(self, loader):
         ''' Method to get confusion matrix,

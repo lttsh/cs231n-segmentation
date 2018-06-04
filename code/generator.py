@@ -29,25 +29,30 @@ class _DecoderBlock(nn.Module):
         middle_channels = in_channels // 2
         layers = [
             nn.ConvTranspose2d(in_channels, in_channels, kernel_size=2, stride=2),
-            nn.Conv2d(in_channels, middle_channels, kernel_size=3, padding=1),
+#             nn.Conv2d(in_channels, middle_channels, kernel_size=3, padding=1),
+            *Conv2d_BatchNorm2d(in_channels, middle_channels, kernel_size=3, padding=1, use_bn=use_bn),
+            nn.ReLU(),
         ]
 
-        if use_bn:
-            layers += [nn.BatchNorm2d(middle_channels)]
-        layers += [nn.ReLU()]
+#         if use_bn:
+#             layers += [nn.BatchNorm2d(middle_channels)]
+#         layers += [nn.ReLU()]
 
         layers += [
-                    nn.Conv2d(middle_channels, middle_channels, kernel_size=3, padding=1),
-                    nn.BatchNorm2d(middle_channels),
+                    *Conv2d_BatchNorm2d(middle_channels, middle_channels, kernel_size=3, padding=1, use_bn=use_bn),
+#                     nn.Conv2d(middle_channels, middle_channels, kernel_size=3, padding=1),
+#                     nn.BatchNorm2d(middle_channels),
                     nn.ReLU(),
                     # nn.LeakyReLU(),
                   ] * (num_conv_layers - 2)
         layers += [
-            nn.Conv2d(middle_channels, out_channels, kernel_size=3, padding=1),
+            *Conv2d_BatchNorm2d(middle_channels, out_channels, kernel_size=3, padding=1, use_bn=use_bn),
+#             nn.Conv2d(middle_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(),
         ]
-        if use_bn:
-            layers += [nn.BatchNorm2d(out_channels)]
-        layers += [nn.ReLU()]
+#         if use_bn:
+#             layers += [nn.BatchNorm2d(out_channels)]
+#         layers += [nn.ReLU()]
         self.decode = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -62,7 +67,7 @@ class _DecoderBlock(nn.Module):
 
 
 class VerySmallNet(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, use_bn=False):
         super().__init__()
         self.net = nn.Conv2d(3, num_classes, kernel_size=3, padding=1)
 
@@ -191,7 +196,7 @@ class SegNet16(nn.Module):
         self.dec4 = _DecoderBlock(1024, 256, 2, use_bn) # Dec4
         self.dec3 = _DecoderBlock(512, 128, 2, use_bn) # Dec3
         self.dec2 = _DecoderBlock(256, 64, 2, use_bn)# Dec2
-        self.dec1 = _DecoderBlock(128, num_classes, 2, use_bn) #Dec 1
+        self.dec1 = _DecoderBlock(128, num_classes, 2, False) #Dec 1
         initialize_weights(self.dec5, self.dec4, self.dec3, self.dec2, self.dec1)
 
     def forward(self, x):
@@ -206,3 +211,11 @@ class SegNet16(nn.Module):
         dec2 = self.dec2(torch.cat([enc2, dec3], 1))
         dec1 = self.dec1(torch.cat([enc1, dec2], 1))
         return dec1
+    
+    def get_feature_embedding(self, x):
+        enc1 = self.enc1(x)
+        enc2 = self.enc2(enc1)
+        enc3 = self.enc3(enc2)
+        enc4 = self.enc4(enc3)
+        enc5 = self.enc5(enc4)
+        return flatten(enc5)

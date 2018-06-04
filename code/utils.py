@@ -63,24 +63,6 @@ def de_normalize(images):
     std = torch.Tensor(COCO_ANIMAL_STD).view(-1, 1, 1)
     return (images * std) + mean
 
-def average_grad_norm(model):
-        """
-        Return the average gradient norm of the input model's parameters
-        Partly copied from torch/nn/utils/clip_grad
-        """
-
-        norm_type = 2.0
-        total_norm = 0
-        n = 0.0
-        for name, p in model.named_parameters():
-            n += 1
-            if p.grad is not None:
-               param_norm = p.grad.data.norm(norm_type)
-               total_norm += param_norm ** norm_type
-        total_norm = total_norm ** (1. / norm_type)
-        average_norm = total_norm / n
-        return average_norm
-
 def smooth_labels(n, device):
     """
     produces smoothed 'real' and 'fake' labels close to 1.0 and 0.0, respecitively
@@ -88,49 +70,14 @@ def smooth_labels(n, device):
     Input:
     n: (int) number of real and fake labels to produce
     Return:
-    false_labels: (n,1) shape Tensor of labels from 0.0 to 0.3
-    true_labels: (n,1) shape Tensor of labels from 0.7 to 1.0
+    false_labels: (n,1) shape Tensor of labels from 0.0 to factor
+    true_labels: (n,1) shape Tensor of labels from 1.0-factor to 1.0
     """
-    false_labels = 0.3 * torch.rand(n, 1).to(device)
-    true_labels = 1.0 - 0.3 * torch.rand(n, 1).to(device)
+    factor = 0.05
+    assert factor < 0.5
+    false_labels = factor * torch.rand(n, 1).to(device)
+    true_labels = 1.0 - factor * torch.rand(n, 1).to(device)
     return false_labels, true_labels
-
-# PLOT UTILS
-# total_saved = 0
-# def visualize_mask(data, gt, pred, save=False):
-#     num_classes = 11
-#     global total_saved
-#     for i in range(len(data)):
-#         total_saved += 1
-#         img = data[i].detach().cpu().numpy()
-#         gt_mask = gt[i].detach().cpu().numpy()
-#         pred_mask = np.argmax(pred[i].detach().cpu().numpy(), axis=0)
-#
-#         display_image = np.transpose(img, (1, 2, 0))
-#         plt.figure()
-#
-#         plt.subplot(131)
-#         plt.imshow(display_image)
-#         plt.axis('off')
-#         plt.title('original image')
-#
-#         cmap = discrete_cmap(num_classes, 'Paired')
-#         norm = colors.NoNorm(vmin=0, vmax=num_classes)
-#
-#         plt.subplot(132)
-#         plt.imshow(display_image)
-#         plt.imshow(gt_mask, alpha=0.8, cmap=cmap, norm=norm)
-#         plt.axis('off')
-#         plt.title('real mask')
-#
-#         plt.subplot(133)
-#         plt.imshow(display_image)
-#         plt.imshow(pred_mask, alpha=0.8, cmap=cmap, norm=norm)
-#         plt.axis('off')
-#         plt.title('predicted mask')
-#         if save:
-#             plt.savefig('saved_{}.png'.format(total_saved))
-#         plt.show()
 
 
 def visualize_mask(trainer, loader, number):
@@ -194,7 +141,7 @@ def visualize_conf(matrix, idToCat):
     ax = fig.add_subplot(111)
     ax.set_aspect(1)
     normed_conf = matrix / np.expand_dims(np.sum(matrix, axis= 1), axis=-1)
-    res = ax.imshow(normed_conf, cmap=plt.cm.jet,
+    res = ax.imshow(normed_conf,
                     interpolation='nearest')
 
     width, height = matrix.shape
@@ -209,3 +156,119 @@ def visualize_conf(matrix, idToCat):
     plt.xticks(range(width), idToCat)
     plt.yticks(range(height), idToCat)
     plt.show()
+
+    
+def true_positive_and_negative(true_scores, false_scores):
+    assert true_scores.size() == false_scores.size()
+    ones = torch.ones(true_scores.size())
+    zeros = torch.zeros(true_scores.size())
+    
+    true_pos = (torch.where(true_scores > 0.5, ones, zeros)).mean()
+    true_neg = 1.0 - (torch.where(false_scores > 0.5, ones, zeros)).mean()
+    return true_pos, true_neg
+
+def dominant_class(mask, numClasses):
+    """
+    mask: Tensor (B, H, W)
+    Return:
+        numpy array (B,) - dominant non-background class of each image
+        
+    """
+    mask = flatten(mask).cpu().numpy()
+    counts = np.apply_along_axis(lambda x: np.bincount(x, minlength=numClasses), axis=1, arr=mask)
+    counts = counts[:, :-1]  # get counts, ignoring background class
+    return np.argmax(counts, axis=1)
+
+
+"""
+Evaluation functions
+"""
+def calc_pixel_accuracy(labels, preds, state):
+    if state is None:
+        state = {
+            'true_pos' : 0.0,
+            'total_pix' : 0.0,
+        }
+    state['true_pos'] += torch.sum(preds * labels).item()
+    state['total_pix'] += torch.sum(labels).item()
+    state['final'] = float(state['true_pos']) / (state['total_pix'] + 1e-12)
+    return state
+
+def calc_mean_IoU(labels, preds, state):
+    if state is None:
+        state = {
+            'total' : 0.0,
+            'mIoU' : 0.0,
+        }
+    
+    batch_size, num_classes = labels.size()[:2]
+    state['total'] += batch_size
+    labels = labels.view(batch_size, num_classes, -1)
+    preds = preds.view(batch_size, num_classes, -1)
+    total_pix = torch.sum(labels, 2)
+    class_present = (total_pix > 0).float() # Ignore class that was not originally present in the groundtruth
+    true_positive = torch.sum(labels * preds, 2)
+    false_positive = torch.sum(preds, 2) - true_positive
+    numerator = torch.sum(class_present * (true_positive / (total_pix + false_positive + 1e-12)), 1)
+    denominator = class_present.sum(1)
+    fraction = (numerator / denominator).masked_select(denominator > 0)
+    state['mIoU'] +=  torch.sum(fraction).item()
+    state['final'] = state['mIoU'] / state['total']
+    return state
+
+def per_class_pixel_acc(labels, preds, state):
+    ''' Evaluates per class pixel accuracy for given batch
+    labels: Bx CxHxW
+    preds: Bx CxHxW
+    state: dictionary containing
+        'true_pos': Cx1 numpy array that totals the number of true positives per class
+        'total_pix': Cx1 numpy array that totals the number of pixels per class
+    '''
+    numClasses = labels.size()[1]
+    if state is None:
+        state = {
+            'true_pos': np.zeros(numClasses),
+            'total_pix': np.zeros(numClasses),
+        }
+
+    positives = preds * labels # B x C x H x W
+    positives = positives.transpose(0, 1).contiguous().view(numClasses, -1).cpu().numpy() # C x -1
+    state['true_pos'] += np.sum(positives, 1)
+    allexamples = labels.transpose(0, 1).contiguous().view(numClasses, -1).cpu().numpy()
+    state['total_pix'] += np.sum(allexamples, 1)
+    state['final'] = np.mean(state['true_pos'] / (state['total_pix'] + 1e-12))
+    return state
+
+def Conv2d_BatchNorm2d(in_channels, out_channels, kernel_size, padding, use_bn):
+    layers = [nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding)]
+    if use_bn:
+        layers += [nn.BatchNorm2d(out_channels)]
+    return layers
+
+
+'''
+Save mask to file
+'''
+def save_to_file(pred_mask, display_image, gt_mask, i, save_dir):
+    plt.figure()
+    plt.subplot(131)
+    plt.imshow(display_image)
+    plt.axis('off')
+    plt.title('original image')
+
+    cmap = discrete_cmap(NUM_CLASSES, 'Paired')
+    norm = colors.NoNorm(vmin=0, vmax=NUM_CLASSES)
+
+    plt.subplot(132)
+    plt.imshow(display_image)
+    plt.imshow(gt_mask, alpha=0.8, cmap=cmap, norm=norm)
+    plt.axis('off')
+    plt.title('real mask')
+
+    plt.subplot(133)
+    plt.imshow(display_image)
+    plt.imshow(pred_mask, alpha=0.8, cmap=cmap, norm=norm)
+    plt.axis('off')
+    plt.title('predicted mask')
+    plt.savefig(os.path.join(save_dir, str(i) + '.png'))
+    plt.clf()

@@ -6,7 +6,7 @@ from utils import *
 
 
 class _EncoderBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, use_bn=True):
         """
         Args:
             in_channels: (int) number of input channels to this block
@@ -15,8 +15,9 @@ class _EncoderBlock(nn.Module):
         """
         super().__init__()
         self.net = nn.Sequential(
-                        *(nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-                        nn.LeakyReLU(),
+                        *(*Conv2d_BatchNorm2d(in_channels, out_channels, kernel_size=3, padding=1, use_bn=use_bn),
+#                         nn.LeakyReLU(),
+                        nn.ReLU(),
                         nn.MaxPool2d(kernel_size=2)))
 
     def forward(self, x):
@@ -24,7 +25,7 @@ class _EncoderBlock(nn.Module):
 
 
 class GAN(nn.Module):
-    def __init__(self, num_classes, masks_shape, images_shape):
+    def __init__(self, num_classes, masks_shape, images_shape, use_bn=True):
         """
         Args:
             num_classes: (int) number of output classes to be predicted
@@ -33,22 +34,30 @@ class GAN(nn.Module):
         """
         super().__init__()
         self.image_branch = nn.Sequential(
-            *(nn.Conv2d(3, 16, kernel_size=5, padding=2),
-               nn.LeakyReLU(),
-               nn.Conv2d(16, 64, kernel_size=5, padding=2),
-               nn.LeakyReLU())
+            *( *Conv2d_BatchNorm2d(3, 16, kernel_size=5, padding=2, use_bn=use_bn),
+#                nn.LeakyReLU(),
+               nn.ReLU(),
+               *Conv2d_BatchNorm2d(16, 64, kernel_size=5, padding=2, use_bn=use_bn),
+#                nn.LeakyReLU())
+               nn.ReLU())
+
         )
         self.masks_branch = nn.Sequential(
-            *(nn.Conv2d(num_classes, 64, kernel_size=5, padding=2),
-               nn.LeakyReLU())
+            *( *Conv2d_BatchNorm2d(num_classes, 64, kernel_size=5, padding=2, use_bn=use_bn),
+#                nn.LeakyReLU())
+               nn.ReLU())
+
         )
 
-        self.enc1 = _EncoderBlock(128, 128)
+        self.enc1 = _EncoderBlock(128, 128, use_bn=use_bn)
         self.enc2 = nn.Sequential(
-            *(nn.Conv2d(128, 128, kernel_size=3, padding=1),
-               nn.LeakyReLU())
+            *( *Conv2d_BatchNorm2d(128, 128, kernel_size=3, padding=1, use_bn=use_bn),
+#                nn.LeakyReLU())
+               nn.ReLU())
+
         )
         features_len = self._get_conv_output(images_shape, masks_shape)
+        print (features_len, images_shape, masks_shape)
         self.prediction = nn.Linear(features_len, 1)
         initialize_weights(self.image_branch, self.masks_branch, self.enc1, self.enc2, self.prediction)
 
