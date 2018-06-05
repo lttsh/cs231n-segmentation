@@ -196,7 +196,7 @@ class SegNet16(nn.Module):
         self.dec4 = _DecoderBlock(1024, 256, 2, use_bn) # Dec4
         self.dec3 = _DecoderBlock(512, 128, 2, use_bn) # Dec3
         self.dec2 = _DecoderBlock(256, 64, 2, use_bn)# Dec2
-        self.dec1 = _DecoderBlock(128, num_classes, 2, False) #Dec 1
+        self.dec1 = _DecoderBlock(128, num_classes, 2, False)
         initialize_weights(self.dec5, self.dec4, self.dec3, self.dec2, self.dec1)
 
     def forward(self, x):

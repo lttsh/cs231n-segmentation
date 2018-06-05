@@ -11,7 +11,7 @@ from tensorboardX import SummaryWriter
 
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
-            gan_reg=1.0, d_iters=5, g_iters=5, weight_clip=1e-2, disc_lr=1e-5, gen_lr=1e-2,
+            gan_reg=1.0, d_iters=5, g_iters=5, weight_clip=1e-2, grad_clip=1e-1, disc_lr=1e-5, gen_lr=1e-2,
             train_gan=False, experiment_dir='./', resume=False, load_iter=None):
         """
         Training class for a specified model
@@ -53,6 +53,7 @@ class Trainer():
         self.start_epoch = 0
         self.best_mIOU = 0
         self.weight_clip = weight_clip
+        self.grad_clip = grad_clip
         self.experiment_dir = experiment_dir
         self.best_path = os.path.join(experiment_dir, 'best.pth.tar')
         if resume:
@@ -80,7 +81,7 @@ class Trainer():
         mini_batch_labels = mini_batch_labels.to(self.device).type(dtype=torch.float32) # Ground truth mask (B, C, H, W)
         mini_batch_labels_flat = mini_batch_labels_flat.to(self.device) # Groun truth mask flattened (B, H, W)
         gen_out = self._gen(mini_batch_data) # Segmentation output from generator (B, C, H , W)
-        converted_mask = convert_to_mask(gen_out).to(self.device)
+        converted_mask = nn.functional.tanh(gen_out).to(self.device)
         # false_labels = torch.zeros((mini_batch_data.size()[0], 1)).to(self.device)
         true_labels = torch.ones((mini_batch_data.size()[0], 1)).to(self.device)
         smooth_false_labels, smooth_true_labels = smooth_labels(mini_batch_data.size()[0], self.device)
@@ -88,12 +89,12 @@ class Trainer():
             d_loss = 0
             self._discoptimizer.zero_grad()
             scores_false = self._disc(mini_batch_data, converted_mask) # (B,)
-            scores_true = self._disc(mini_batch_data, mini_batch_labels) # (B,)
+            scores_true = self._disc(mini_batch_data, 2 * mini_batch_labels - 1.0) # (B,)
             true_positive, true_negative = true_positive_and_negative(scores_true.detach().cpu(), scores_false.detach().cpu())
             # d_loss = torch.mean(scores_false) - torch.mean(scores_true)
             d_loss = self._BCEcriterion(scores_false, smooth_false_labels) + self._BCEcriterion(scores_true, smooth_true_labels)
             d_loss.backward()
-            d_grad_norm = torch.nn.utils.clip_grad_norm_(self._disc.parameters(), 1.0)
+            d_grad_norm = torch.nn.utils.clip_grad_norm_(self._disc.parameters(), self.grad_clip)
             self._discoptimizer.step()
             # W-GAN weight clipping
             # for p in self._disc.parameters():
@@ -111,7 +112,7 @@ class Trainer():
             segmentation_loss = self._MCEcriterion(gen_out, mini_batch_labels_flat)
             gen_loss = segmentation_loss + self.gan_reg * g_loss
             gen_loss.backward()
-            g_grad_norm = torch.nn.utils.clip_grad_norm_(self._gen.parameters(), 1.0)
+            g_grad_norm = torch.nn.utils.clip_grad_norm_(self._gen.parameters(), self.grad_clip)
             self._genoptimizer.step()
             return g_loss, segmentation_loss, g_grad_norm
 
@@ -246,18 +247,18 @@ class Trainer():
             labels = labels.float().to(self.device)
             preds = convert_to_mask(self._gen(data)).to(self.device) # B x C x H x W
             
-            # if save_mask:
-            #  save_dir = os.path.join(self.experiment_dir, str(curr_iter))
-            #  if not os.path.exists(save_dir):
-            #    os.makedirs(save_dir)
-            #    
-            #  for i in range(len(data)):
-            #    img = de_normalize(data[i].detach().cpu().numpy())
-            #    gt_mask = gt_visual[i].detach().cpu().numpy()
-            #    pred_mask = np.argmax(preds[i].detach().cpu().numpy(), axis=0)
-            #    display_image = np.transpose(img, (1, 2, 0))
-            #    save_to_file(pred_mask, display_image, gt_mask, i, save_dir)
-            #  save_mask = False
+            if save_mask:
+                save_dir = os.path.join(self.experiment_dir, str(curr_iter))
+                if not os.path.exists(save_dir):
+                    os.makedirs(save_dir)
+               
+                for i in range(len(data)):
+                    img = de_normalize(data[i].detach().cpu().numpy())
+                    gt_mask = gt_visual[i].detach().cpu().numpy()
+                    pred_mask = np.argmax(preds[i].detach().cpu().numpy(), axis=0)
+                    display_image = np.transpose(img, (1, 2, 0))
+                    save_to_file(pred_mask, display_image, gt_mask, i, save_dir)
+                save_mask = False
             
             if ignore_background:
                 labels = labels.narrow(1, 0, num_classes-1)

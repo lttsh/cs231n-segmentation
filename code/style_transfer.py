@@ -50,8 +50,8 @@ def gram_matrix(features, feature_mask=None, normalize=True):
 
     if feature_mask is not None:
         T = feature_mask.view(*feature_mask.shape[:-2], -1).to(device)
-        # print("F shape: ", F_1.shape)
-        # print("T shape: ", T.shape)
+#         print("F shape: ", F_1.shape)
+#         print("T shape: ", T.shape)
         # print("Feature mask shape: ", feature_mask.shape)
         F_1 = F_1 * T
     G = torch.matmul(F_0, F_1.transpose(1, 2))
@@ -132,15 +132,15 @@ def extract_features(x, cnn):
     return features
 
 # Extract features for the style image
-def prep_style(cnn, style_img, image_size, style_layers):
-    style_img = preprocess(style_img, size=image_size)
+def prep_style(cnn, style_img, style_size, style_layers):
+    style_img = preprocess(style_img, size=style_size)
     feats = extract_features(style_img, cnn)
     style_targets = []
     for idx in style_layers:
         style_targets.append(gram_matrix(feats[idx].clone()))
     return style_img, style_targets
 
-def style_transfer(cnn, content_image, style_image, content_mask, image_size, content_layer, content_weight,
+def style_transfer(cnn, content_image, style_image, content_mask, image_size, style_size, content_layer, content_weight,
                    style_layers, style_weights, tv_weight, max_iters, init_random=False, mask_layer=False, second_style_image=None):
     """
     Run style transfer!
@@ -150,6 +150,7 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, co
     - content_image: filename of content image
     - style_image: filename of style image
     - image_size: size of smallest image dimension (used for content loss and generated image)
+    - style_size: size of smallest style image 
     - content_layer: layer to use for content loss
     - content_weight: weighting on content loss
     - style_layers: list of layers to use for style loss
@@ -165,10 +166,9 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, co
     feats = extract_features(content_img, cnn)
     content_target = feats[content_layer].clone().to(device)
 
-    style_image, style_targets = prep_style(cnn, style_image, image_size, style_layers)
-    style_image = style_image
+    style_image, style_targets = prep_style(cnn, style_image, style_size, style_layers)
     if second_style_image is not None:
-        second_style_image, second_style_targets = prep_style(cnn, second_style_image, image_size, style_layers)
+        second_style_image, second_style_targets = prep_style(cnn, second_style_image, style_size, style_layers)
 
     # Initialize output image to content image or noise
     if init_random:
@@ -189,13 +189,13 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, co
         
     feature_masks = None
     if mask_layer:
-        feature_masks = get_soft_masks(content_mask, cnn, style_layers)
+        feature_masks = get_soft_masks(content_mask, cnn, style_layers, style_size)
         # for m in feature_masks:
         #     m = m.detach().numpy().reshape(*(m.shape)[-2:])
         #     plt.axis('off')
         #     plt.imshow(m)
         #     plt.show()
-        second_feature_masks = get_soft_masks(1.0 - content_mask, cnn, style_layers)
+        second_feature_masks = get_soft_masks(1.0 - content_mask, cnn, style_layers, style_size)
     loss_list = []
     for t in range(max_iters):
 #         if t < 390:
@@ -221,12 +221,12 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, co
 #             optimizer = torch.optim.Adam([img], lr=decayed_lr)
         optimizer.step()
 
-#         if t % 100 == 0:
-#             print("Iteration {},\tLoss: {},\tContent: {},\tStyle: {},\tTV: {}".format(t, loss, c_loss, s_loss, t_loss))
+        if t % 100 == 0:
+            print("Iteration {},\tLoss: {},\tContent: {},\tStyle: {},\tTV: {}".format(t, loss, c_loss, s_loss, t_loss))
 
     img = np.asarray(deprocess(img.data.cpu()), dtype=np.uint8)
-    content_img = np.asarray(deprocess(content_img.cpu()), dtype=np.uint8)
-    content_mask = np.expand_dims(content_mask, axis=-1)
+#     content_img = np.asarray(deprocess(content_img.cpu()), dtype=np.uint8)
+#     content_mask = np.expand_dims(content_mask, axis=-1)
     final_img = img.astype(np.uint8)
     final_img = PIL.Image.fromarray(final_img)
     return final_img, loss, loss_list
@@ -278,8 +278,11 @@ def corresponding_filter(layer):
     else:
         return None
 
-def get_soft_masks(mask, cnn, layer_indices):
-    x = torch.Tensor(mask.reshape((1, 1, *mask.shape)))
+def get_soft_masks(mask, cnn, layer_indices, style_size):
+    #first reshape the mask to be (style_size, style_size) in shape
+    x = torch.Tensor(mask.reshape((1, 1, *mask.size())))
+#     x = nn.functional.upsample(x, size=(style_size, style_size))
+    
     soft_masks = []
     for i, module in enumerate(cnn._modules.values()):
         next_module = corresponding_filter(module)
@@ -295,8 +298,8 @@ def get_soft_masks(mask, cnn, layer_indices):
 def display_style_transfer(img, savename):
     plt.figure()
     plt.axis('off')
-    img = PIL.ImageEnhance.Contrast(img).enhance(1.3)
-    img = PIL.ImageEnhance.Brightness(img).enhance(1.1)
+#     img = PIL.ImageEnhance.Contrast(img).enhance(1.3)
+#     img = PIL.ImageEnhance.Brightness(img).enhance(1.1)
     plt.imshow(img)
     plt.savefig(savename)
     plt.show()

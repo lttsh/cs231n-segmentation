@@ -45,17 +45,14 @@ class GAN(nn.Module):
         self.masks_branch = nn.Sequential(
             *( *Conv2d_BatchNorm2d(num_classes, 64, kernel_size=5, padding=2, use_bn=use_bn),
 #                nn.LeakyReLU())
-               nn.ReLU())
+               nn.ReLU(),
+             )
 
         )
 
-        self.enc1 = _EncoderBlock(128, 128, use_bn=use_bn)
-        self.enc2 = nn.Sequential(
-            *( *Conv2d_BatchNorm2d(128, 128, kernel_size=3, padding=1, use_bn=use_bn),
-#                nn.LeakyReLU())
-               nn.ReLU())
-
-        )
+        self.enc1 = _EncoderBlock(128, 256, use_bn=use_bn)
+        self.enc2 = _EncoderBlock(256, 512, use_bn=use_bn)
+           
         features_len = self._get_conv_output(images_shape, masks_shape)
         print (features_len, images_shape, masks_shape)
         self.prediction = nn.Linear(features_len, 1)

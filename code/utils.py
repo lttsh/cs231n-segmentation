@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torchvision.transforms as T
@@ -73,7 +74,7 @@ def smooth_labels(n, device):
     false_labels: (n,1) shape Tensor of labels from 0.0 to factor
     true_labels: (n,1) shape Tensor of labels from 1.0-factor to 1.0
     """
-    factor = 0.05
+    factor = 0.1
     assert factor < 0.5
     false_labels = factor * torch.rand(n, 1).to(device)
     true_labels = 1.0 - factor * torch.rand(n, 1).to(device)
@@ -157,7 +158,6 @@ def visualize_conf(matrix, idToCat):
     plt.yticks(range(height), idToCat)
     plt.show()
 
-    
 def true_positive_and_negative(true_scores, false_scores):
     assert true_scores.size() == false_scores.size()
     ones = torch.ones(true_scores.size())
@@ -166,7 +166,7 @@ def true_positive_and_negative(true_scores, false_scores):
     true_pos = (torch.where(true_scores > 0.5, ones, zeros)).mean()
     true_neg = 1.0 - (torch.where(false_scores > 0.5, ones, zeros)).mean()
     return true_pos, true_neg
-
+    
 def dominant_class(mask, numClasses):
     """
     mask: Tensor (B, H, W)
@@ -179,10 +179,10 @@ def dominant_class(mask, numClasses):
     counts = counts[:, :-1]  # get counts, ignoring background class
     return np.argmax(counts, axis=1)
 
-
 """
 Evaluation functions
 """
+
 def calc_pixel_accuracy(labels, preds, state):
     if state is None:
         state = {
@@ -250,12 +250,14 @@ def Conv2d_BatchNorm2d(in_channels, out_channels, kernel_size, padding, use_bn):
 Save mask to file
 '''
 def save_to_file(pred_mask, display_image, gt_mask, i, save_dir):
+    plt.switch_backend('agg')
     plt.figure()
     plt.subplot(131)
     plt.imshow(display_image)
     plt.axis('off')
     plt.title('original image')
 
+    NUM_CLASSES = 11
     cmap = discrete_cmap(NUM_CLASSES, 'Paired')
     norm = colors.NoNorm(vmin=0, vmax=NUM_CLASSES)
 
@@ -272,3 +274,11 @@ def save_to_file(pred_mask, display_image, gt_mask, i, save_dir):
     plt.title('predicted mask')
     plt.savefig(os.path.join(save_dir, str(i) + '.png'))
     plt.clf()
+    
+def get_category_name_array(loader):
+    dataset = loader.dataset
+    coco = dataset.coco
+    all_cats_ids = coco.getCatIds()
+    cats = coco.loadCats(all_cats_ids)
+    nms=[cat['name'] for cat in cats]
+    return [nms[all_cats_ids.index(i)] for i in loader.dataset.catIds]
