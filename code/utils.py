@@ -64,7 +64,7 @@ def de_normalize(images):
     std = torch.Tensor(COCO_ANIMAL_STD).view(-1, 1, 1)
     return (images * std) + mean
 
-def smooth_labels(n, device):
+def smooth_labels(n):
     """
     produces smoothed 'real' and 'fake' labels close to 1.0 and 0.0, respecitively
 
@@ -76,8 +76,8 @@ def smooth_labels(n, device):
     """
     factor = 0.1
     assert factor < 0.5
-    false_labels = factor * torch.rand(n, 1).to(device)
-    true_labels = 1.0 - factor * torch.rand(n, 1).to(device)
+    false_labels = factor * torch.rand(n, 1).cuda()
+    true_labels = 1.0 - factor * torch.rand(n, 1).cuda()
     return false_labels, true_labels
 
 
@@ -86,7 +86,7 @@ def visualize_mask(trainer, loader, number):
     to_return = []
     for data, mask_gt, gt_visual in loader:
         if total < number:
-            data = data.to(trainer.device)
+            data = data.cuda()
             batch_size = data.size()[0]
             total += batch_size
             mask_pred = convert_to_mask(trainer._gen(data))

@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from dataset import CocoStuffDataSet
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor   
 
 def content_loss(content_weight, content_current, content_original):
@@ -27,8 +26,8 @@ def content_loss(content_weight, content_current, content_original):
     - scalar content loss
     """
     _, C_l, H_l, W_l = content_current.size()
-    cc = content_current.view(C_l, H_l*W_l).to(device)
-    ct = content_original.view(C_l, H_l*W_l).to(device)
+    cc = content_current.view(C_l, H_l*W_l).cuda()
+    ct = content_original.view(C_l, H_l*W_l).cuda()
     return content_weight * (cc-ct).pow(2).sum()
 
 def gram_matrix(features, feature_mask=None, normalize=True):
@@ -46,10 +45,10 @@ def gram_matrix(features, feature_mask=None, normalize=True):
       (optionally normalized) Gram matrices for the N input images.
     """
     N, C, H, W = features.size()
-    F_0 = F_1 = features.view(N, C, -1).to(device)
+    F_0 = F_1 = features.view(N, C, -1).cuda()
 
     if feature_mask is not None:
-        T = feature_mask.view(*feature_mask.shape[:-2], -1).to(device)
+        T = feature_mask.view(*feature_mask.shape[:-2], -1).cuda()
 #         print("F shape: ", F_1.shape)
 #         print("T shape: ", T.shape)
         # print("Feature mask shape: ", feature_mask.shape)
@@ -85,7 +84,7 @@ def style_loss(feats, style_layers, style_targets, style_weights, feature_masks)
             G = gram_matrix(feats[style_layers[i]], feature_masks[style_layers[i]])
         else:
             G = gram_matrix(feats[style_layers[i]])
-        loss += style_weights[i] * (style_targets[i].to(device) - G).pow(2).sum()
+        loss += style_weights[i] * (style_targets[i].cuda() - G).pow(2).sum()
     return loss
 
 def tv_loss(img, tv_weight):
@@ -101,9 +100,9 @@ def tv_loss(img, tv_weight):
       for img weighted by tv_weight.
     """
     N, C, H, W = img.size()
-    down = torch.cat((img[:,:,1:,:], img[:,:,-1,:].view(N, C, 1, W)), dim=2).to(device)
-    right = torch.cat((img[:,:,:,1:], img[:,:,:,-1].view(N, C, H, 1)), dim=3).to(device)
-    img = img.to(device)
+    down = torch.cat((img[:,:,1:,:], img[:,:,-1,:].view(N, C, 1, W)), dim=2).cuda()
+    right = torch.cat((img[:,:,:,1:], img[:,:,:,-1].view(N, C, H, 1)), dim=3).cuda()
+    img = img.cuda()
     return tv_weight * ((down - img).pow(2).sum() + (right - img).pow(2).sum())
 
 # We provide this helper code which takes an image, a model (cnn), and returns a list of
@@ -124,7 +123,7 @@ def extract_features(x, cnn):
       spatial dimensions (H_i, W_i).
     """
     features = []
-    prev_feat = x.to(device)
+    prev_feat = x.cuda()
     for i, module in enumerate(cnn._modules.values()):
         next_feat = module(prev_feat)
         features.append(next_feat)
@@ -162,9 +161,9 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, st
     - second_style_image: second style image to use on the foreground of image
     """
     # Extract features for the content image
-    content_img = preprocess(content_image, size=image_size).to(device)
+    content_img = preprocess(content_image, size=image_size).cuda()
     feats = extract_features(content_img, cnn)
-    content_target = feats[content_layer].clone().to(device)
+    content_target = feats[content_layer].clone().cuda()
 
     style_image, style_targets = prep_style(cnn, style_image, style_size, style_layers)
     if second_style_image is not None:
@@ -176,7 +175,7 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, st
     else:
         img = content_img.clone().type(dtype)
 
-    img = img.to(device)
+    img = img.cuda()
     # We do want the gradient computed on our image!
     img.requires_grad_()
     
