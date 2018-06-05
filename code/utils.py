@@ -137,7 +137,7 @@ def discrete_cmap(N, base_cmap=None):
     return base.from_list(cmap_name, color_list, N)
 
 def visualize_conf(matrix, idToCat):
-    fig = plt.figure(figsize=(10,10))
+    fig = plt.figure(figsize=(12,12))
     plt.clf()
     ax = fig.add_subplot(111)
     ax.set_aspect(1)
