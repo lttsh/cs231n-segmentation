@@ -137,7 +137,7 @@ def discrete_cmap(N, base_cmap=None):
     return base.from_list(cmap_name, color_list, N)
 
 def visualize_conf(matrix, idToCat):
-    fig = plt.figure()
+    fig = plt.figure(figsize=(10,10))
     plt.clf()
     ax = fig.add_subplot(111)
     ax.set_aspect(1)
@@ -149,7 +149,7 @@ def visualize_conf(matrix, idToCat):
 
     for x in range(width):
         for y in range(height):
-            ax.annotate(str(matrix[x][y]), xy=(y, x),
+            ax.annotate("{:0.2f}".format(normed_conf[x][y]), xy=(y, x),
                         horizontalalignment='center',
                         verticalalignment='center')
 
@@ -158,14 +158,14 @@ def visualize_conf(matrix, idToCat):
     plt.yticks(range(height), idToCat)
     plt.show()
 
-def true_positive_and_negative(true_scores, false_scores):
-    assert true_scores.size() == false_scores.size()
-    ones = torch.ones(true_scores.size())
-    zeros = torch.zeros(true_scores.size())
+# def true_positive_and_negative(true_scores, false_scores):
+#     assert true_scores.size() == false_scores.size()
+#     ones = torch.ones(true_scores.size())
+#     zeros = torch.zeros(true_scores.size())
     
-    true_pos = (torch.where(true_scores > 0.5, ones, zeros)).mean()
-    true_neg = 1.0 - (torch.where(false_scores > 0.5, ones, zeros)).mean()
-    return true_pos, true_neg
+#     true_pos = (torch.where(true_scores > 0.5, ones, zeros)).mean()
+#     true_neg = 1.0 - (torch.where(false_scores > 0.5, ones, zeros)).mean()
+#     return true_pos, true_neg
     
 def dominant_class(mask, numClasses):
     """

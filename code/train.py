@@ -11,8 +11,8 @@ from tensorboardX import SummaryWriter
 
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
-            gan_reg=1.0, weight_clip=1e-2, grad_clip=1e-1, disc_lr=1e-5, gen_lr=1e-2,
-            train_gan=False, experiment_dir='./', resume=False, load_iter=None):
+            gan_reg=1.0, weight_clip=1e-2, grad_clip=1e-1, noise_scale=1e-2, disc_lr=1e-5, gen_lr=1e-2, 
+            train_gan=False, experiment_dir='./', resume=False, load_iter=None, device=None):
         """
         Training class for a specified model
         Args:
@@ -23,7 +23,14 @@ class Trainer():
             experiment_dir: path to directory that saves everything
             resume: load from last saved checkpoint ?
         """
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        if device is None:
+            self.device = torch.device("cpu")
+        elif device == 0:
+            self.device = torch.device("cuda:0")
+        elif device == 1:
+            self.device = torch.device("cuda:1")
+        else:
+            raise ValueError("Invalid device index: {}".format(device))
         print ("Using device %s" % self.device)
         self._gen = generator.to(self.device)
         self.train_gan = train_gan and discriminator is not None
@@ -31,16 +38,18 @@ class Trainer():
         if self.train_gan:
             print ("Training GAN")
             self._disc = discriminator.to(self.device)
+            print(self._disc.get_device()
             self._discoptimizer = optim.Adam(self._disc.parameters(), lr=disc_lr, betas=(beta1, 0.999)) # Discriminator optimizer (needs to be separate)
             self._BCEcriterion = nn.BCEWithLogitsLoss()
         else:
+            self._disc = None
             print ("Runing network without GAN loss.")
             
         self._train_loader = train_loader
         self._val_loader = val_loader
 
         self._MCEcriterion = nn.CrossEntropyLoss() # self._train_loader.dataset.weights.to(self.device)) # Criterion for segmentation loss
-        
+
         self._genoptimizer = optim.Adam(self._gen.parameters(), lr=gen_lr, betas=(beta1, 0.999)) # Generator optimizer
         self.gan_reg = gan_reg
         self.start_iter = 0
@@ -49,6 +58,7 @@ class Trainer():
         self.best_mIOU = 0
         self.weight_clip = weight_clip
         self.grad_clip = grad_clip
+        self.noise_scale = noise_scale
         self.experiment_dir = experiment_dir
         self.best_path = os.path.join(experiment_dir, 'best.pth.tar')
         if resume:
@@ -97,8 +107,11 @@ class Trainer():
             self._genoptimizer.step()
             
             # now backprop through disc_loss = bce(disc(gen(data), label), 1) +  bce(disc(data, label), 0)
-            false_scores = self._disc(data, converted_mask.detach())
-            true_scores = self._disc(data, labels) # (B,)
+            jittered_gen_mask = converted_mask.detach() + self.noise_scale * torch.randn_like(converted_mask)            
+            false_scores = self._disc(data, jittered_gen_mask)
+            jittered_labels = labels + self.noise_scale * torch.randn_like(labels)
+            true_scores = self._disc(data, jittered_labels) # (B,)
+            # true_scores = self._disc(data, labels) # (B,)
             smooth_false_labels, smooth_true_labels = smooth_labels(data.size()[0], self.device)
             self._discoptimizer.zero_grad()      
             d_loss = self._BCEcriterion(false_scores, smooth_false_labels) + self._BCEcriterion(true_scores, smooth_true_labels)
@@ -217,11 +230,11 @@ class Trainer():
         else:
             print("=> no checkpoint found at '{}'".format(save_path))
 
-    
+
     '''
     Evaluation methods
     '''
-    def evaluate(self, loader, curr_iter, ignore_background=True, num_batches=None, save_mask=True):
+    def evaluate(self, loader, curr_iter, ignore_background=True, num_batches=None):
         num_iters = 0
         num_classes = loader.dataset.numClasses
         metrics = [calc_pixel_accuracy, calc_mean_IoU, per_class_pixel_acc]
@@ -231,20 +244,6 @@ class Trainer():
             data = data.to(self.device)
             labels = labels.float().to(self.device)
             preds = convert_to_mask(self._gen(data)).to(self.device) # B x C x H x W
-            
-            if save_mask:
-                save_dir = os.path.join(self.experiment_dir, str(curr_iter))
-                if not os.path.exists(save_dir):
-                    os.makedirs(save_dir)
-               
-                for i in range(len(data)):
-                    img = de_normalize(data[i].detach().cpu().numpy())
-                    gt_mask = gt_visual[i].detach().cpu().numpy()
-                    pred_mask = np.argmax(preds[i].detach().cpu().numpy(), axis=0)
-                    display_image = np.transpose(img, (1, 2, 0))
-                    save_to_file(pred_mask, display_image, gt_mask, i, save_dir)
-                save_mask = False
-            
             if ignore_background:
                 labels = labels.narrow(1, 0, num_classes-1)
                 preds = preds.narrow(1, 0, num_classes-1)
@@ -274,7 +273,8 @@ class Trainer():
                                   minlength=numClasses ** 2)
             assert bincount_2d.size == numClasses ** 2
             conf = bincount_2d.reshape((numClasses, numClasses))
-            return conf
+            confusion_mat += conf
+        return confusion_mat
         
     def true_positive_and_negative_rates(self, loader):
         true_positive = 0.0

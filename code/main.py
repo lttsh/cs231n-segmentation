@@ -8,20 +8,6 @@ import os, argparse, datetime, json
 
 SAVE_DIR = "../checkpoints" # Assuming this is launched from code/ subfolder.
 
-def by_pixel_weights(dataloader, savename):
-    num_classes = dataloader.dataset.numClasses
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    counts = torch.zeros(num_classes).float().to(device)
-    for _, masks, _ in dataloader:
-        masks = masks.float().to(device)
-        counts += (masks.view((num_classes, -1))).sum(dim=1)
-    weights = counts.reciprocal()
-    weights /= weights.sum()
-
-    print("Saving weights to ", savename)
-    torch.save(weights, savename)
-    return weights
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
     parser.add_argument('--mode', default='train', type=str,
@@ -55,16 +41,16 @@ if __name__ == "__main__":
                         help='Weight clipping for W-GAN loss')
     parser.add_argument('--grad_clip', default=0.1, type=float,
                         help='Gradient clipping for GAN')
-    parser.add_argument('--gan_reg', default=1e-3, type=float,
-                        help='Regularization strength for gan')
-#     parser.add_argument('-d', '--d_iters', default=5, type=int,
-#                         help='Number of training iterations for discriminator within one loop')
-#     parser.add_argument('-g', '--g_iters', default=5, type=int,
-#                         help='Number of training iterations for generator within one loop')
+    parser.add_argument('--noise_scale', default=1e-2, type=float,
+                    help='std for gaussian noise added to the labels')
+    parser.add_argument('--gan_reg', default=1e-2, type=float,
+                        help='Regularization strength from gan')
     parser.add_argument('--generator_name', default='SegNet16', type=str,
                         help='Name of generator model to run')
     parser.add_argument('--use_bn', default='True', type=bool,
                         help='Use batch norm in Decoder block')
+    parser.add_argument('--device', default=None, type=int,
+                        help='Index of gpu device to use. If not specified, uses cpu')
 
     args = parser.parse_args()
 
@@ -90,7 +76,7 @@ if __name__ == "__main__":
             args_dict['batch_size'] = args.batch_size
             args_dict['gan_reg'] = args.gan_reg
             args_dict['disc_lr'] = args.disc_lr
-            args_dict['gen_lr'] = args_dict.gen_lr
+            args_dict['gen_lr'] = args.gen_lr
 
             current_dict = vars(args)
             for (key, value) in args_dict.items():
@@ -111,11 +97,10 @@ if __name__ == "__main__":
     generator = get_generator(args.generator_name, NUM_CLASSES, args.use_bn)
     if args.train_gan:
         discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
-
     trainer = Trainer(generator, discriminator, train_loader, val_loader, \
                     gan_reg=args.gan_reg, weight_clip=args.weight_clip, grad_clip=args.grad_clip, \
-                    disc_lr=args.disc_lr, gen_lr=args.gen_lr, train_gan= args.train_gan, \
-                    experiment_dir=experiment_dir, resume=args.load_model, load_iter=args.load_iter)
+                    noise_scale=args.noise_scale, disc_lr=args.disc_lr, gen_lr=args.gen_lr, train_gan= args.train_gan, \
+                    experiment_dir=experiment_dir, resume=args.load_model, load_iter=args.load_iter, device=args.device)
 
     if args.mode == "train":
         trainer.train(num_epochs=args.epochs, print_every=args.print_every, eval_every=args.eval_every)

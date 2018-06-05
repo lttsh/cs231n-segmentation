@@ -29,30 +29,18 @@ class _DecoderBlock(nn.Module):
         middle_channels = in_channels // 2
         layers = [
             nn.ConvTranspose2d(in_channels, in_channels, kernel_size=2, stride=2),
-#             nn.Conv2d(in_channels, middle_channels, kernel_size=3, padding=1),
             *Conv2d_BatchNorm2d(in_channels, middle_channels, kernel_size=3, padding=1, use_bn=use_bn),
             nn.ReLU(),
         ]
 
-#         if use_bn:
-#             layers += [nn.BatchNorm2d(middle_channels)]
-#         layers += [nn.ReLU()]
-
         layers += [
                     *Conv2d_BatchNorm2d(middle_channels, middle_channels, kernel_size=3, padding=1, use_bn=use_bn),
-#                     nn.Conv2d(middle_channels, middle_channels, kernel_size=3, padding=1),
-#                     nn.BatchNorm2d(middle_channels),
                     nn.ReLU(),
-                    # nn.LeakyReLU(),
                   ] * (num_conv_layers - 2)
         layers += [
             *Conv2d_BatchNorm2d(middle_channels, out_channels, kernel_size=3, padding=1, use_bn=use_bn),
-#             nn.Conv2d(middle_channels, out_channels, kernel_size=3, padding=1),
             nn.ReLU(),
         ]
-#         if use_bn:
-#             layers += [nn.BatchNorm2d(out_channels)]
-#         layers += [nn.ReLU()]
         self.decode = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -211,7 +199,7 @@ class SegNet16(nn.Module):
         dec2 = self.dec2(torch.cat([enc2, dec3], 1))
         dec1 = self.dec1(torch.cat([enc1, dec2], 1))
         return dec1
-    
+
     def get_feature_embedding(self, x):
         enc1 = self.enc1(x)
         enc2 = self.enc2(enc1)
