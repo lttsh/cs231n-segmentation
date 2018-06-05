@@ -49,9 +49,7 @@ if __name__ == "__main__":
                         help='Name of generator model to run')
     parser.add_argument('--use_bn', default='True', type=bool,
                         help='Use batch norm in Decoder block')
-    parser.add_argument('--device', default=None, type=int,
-                        help='Index of gpu device to use. If not specified, uses cpu')
-
+   
     args = parser.parse_args()
 
     # Create experiment specific directory
@@ -100,7 +98,7 @@ if __name__ == "__main__":
     trainer = Trainer(generator, discriminator, train_loader, val_loader, \
                     gan_reg=args.gan_reg, weight_clip=args.weight_clip, grad_clip=args.grad_clip, \
                     noise_scale=args.noise_scale, disc_lr=args.disc_lr, gen_lr=args.gen_lr, train_gan= args.train_gan, \
-                    experiment_dir=experiment_dir, resume=args.load_model, load_iter=args.load_iter, device=args.device)
+                    experiment_dir=experiment_dir, resume=args.load_model, load_iter=args.load_iter)
 
     if args.mode == "train":
         trainer.train(num_epochs=args.epochs, print_every=args.print_every, eval_every=args.eval_every)

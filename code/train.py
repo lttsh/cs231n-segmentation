@@ -12,7 +12,7 @@ from tensorboardX import SummaryWriter
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
             gan_reg=1.0, weight_clip=1e-2, grad_clip=1e-1, noise_scale=1e-2, disc_lr=1e-5, gen_lr=1e-2, 
-            train_gan=False, experiment_dir='./', resume=False, load_iter=None, device=None):
+            train_gan=False, experiment_dir='./', resume=False, load_iter=None):
         """
         Training class for a specified model
         Args:
@@ -23,21 +23,13 @@ class Trainer():
             experiment_dir: path to directory that saves everything
             resume: load from last saved checkpoint ?
         """
-        if device is None:
-            self.device = torch.device("cpu")
-        elif device == 0:
-            self.device = torch.device("cuda:0")
-        elif device == 1:
-            self.device = torch.device("cuda:1")
-        else:
-            raise ValueError("Invalid device index: {}".format(device))
-        print ("Using device %s" % self.device)
-        self._gen = generator.to(self.device)
+       
+        self._gen = generator.cuda()
         self.train_gan = train_gan and discriminator is not None
         beta1 = 0.5
         if self.train_gan:
             print ("Training GAN")
-            self._disc = discriminator.to(self.device)
+            self._disc = discriminator.cuda()
             print(self._disc.get_device()
             self._discoptimizer = optim.Adam(self._disc.parameters(), lr=disc_lr, betas=(beta1, 0.999)) # Discriminator optimizer (needs to be separate)
             self._BCEcriterion = nn.BCEWithLogitsLoss()
@@ -48,7 +40,7 @@ class Trainer():
         self._train_loader = train_loader
         self._val_loader = val_loader
 
-        self._MCEcriterion = nn.CrossEntropyLoss() # self._train_loader.dataset.weights.to(self.device)) # Criterion for segmentation loss
+        self._MCEcriterion = nn.CrossEntropyLoss() # self._train_loader.dataset.weights.cuda()) # Criterion for segmentation loss
 
         self._genoptimizer = optim.Adam(self._gen.parameters(), lr=gen_lr, betas=(beta1, 0.999)) # Generator optimizer
         self.gan_reg = gan_reg
@@ -79,9 +71,9 @@ class Trainer():
             g_loss: (float) generator loss
             segmentation_loss: (float) segmentation loss
         """
-        data = mini_batch_data.to(self.device) # Input image (B, 3, H, W)
-        labels = mini_batch_labels.to(self.device).type(dtype=torch.float32) # Ground truth mask (B, C, H, W)
-        labels_flat = mini_batch_labels_flat.to(self.device) # Ground truth mask flattened (B, H, W)
+        data = mini_batch_data.cuda() # Input image (B, 3, H, W)
+        labels = mini_batch_labels.cuda().type(dtype=torch.float32) # Ground truth mask (B, C, H, W)
+        labels_flat = mini_batch_labels_flat.cuda() # Ground truth mask flattened (B, H, W)
         self._gen.train()
         gen_out = self._gen(data) # Segmentation output from generator (B, C, H , W)              
 
@@ -241,9 +233,9 @@ class Trainer():
         states = [None] * len(metrics)
         self._gen.eval()
         for data, labels, gt_visual in loader:
-            data = data.to(self.device)
-            labels = labels.float().to(self.device)
-            preds = convert_to_mask(self._gen(data)).to(self.device) # B x C x H x W
+            data = data.cuda()
+            labels = labels.float().cuda()
+            preds = convert_to_mask(self._gen(data)).cuda() # B x C x H x W
             if ignore_background:
                 labels = labels.narrow(1, 0, num_classes-1)
                 preds = preds.narrow(1, 0, num_classes-1)
@@ -263,7 +255,7 @@ class Trainer():
         numClasses = loader.dataset.numClasses
         confusion_mat = np.zeros((numClasses, numClasses))
         for data, mask_gt, gt_visual in loader:
-            data = data.to(self.device)
+            data = data.cuda()
             mask_pred = convert_to_mask(self._gen(data)).numpy()
             mask_pred = np.transpose(mask_pred, (1, 0, 2, 3)) # C x B x H x W
             pred_labels = np.argmax(mask_pred, axis=0).reshape((-1,))
@@ -281,8 +273,8 @@ class Trainer():
         true_negative = 0.0
         total = 0.0
         for data, mask_gt, gt_visual in loader:
-            data = data.to(self.device)
-            mask_gt = mask_gt.float().to(self.device) # Ground truth mask (B, C, H, W)
+            data = data.cuda()
+            mask_gt = mask_gt.float().cuda() # Ground truth mask (B, C, H, W)
             self._gen.eval()
             self._disc.eval()
             gen_out = self._gen(data) # Segmentation output from generator (B, C, H , W)              
