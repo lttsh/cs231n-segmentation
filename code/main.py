@@ -55,7 +55,9 @@ if __name__ == "__main__":
                         help='Weight clipping for W-GAN loss')
     parser.add_argument('--grad_clip', default=0.1, type=float,
                         help='Gradient clipping for GAN')
-    parser.add_argument('--gan_reg', default=1.0, type=float,
+    parser.add_argument('--noise_scale', default=1e-2, type=float,
+                    help='std for gaussian noise added to the labels')
+    parser.add_argument('--gan_reg', default=1e-2, type=float,
                         help='Regularization strength from gan')
     parser.add_argument('-d', '--d_iters', default=5, type=int,
                         help='Number of training iterations for discriminator within one loop')
@@ -116,7 +118,8 @@ if __name__ == "__main__":
 
     trainer = Trainer(generator, discriminator, train_loader, val_loader, \
                     gan_reg=args.gan_reg, d_iters=args.d_iters, g_iters=args.g_iters,\
-                    weight_clip= args.weight_clip, grad_clip= args.grad_clip, disc_lr=args.disc_lr, gen_lr=args.gen_lr,
+                    weight_clip= args.weight_clip, grad_clip= args.grad_clip, noise_scale=args.noise_scale,
+                    disc_lr=args.disc_lr, gen_lr=args.gen_lr,
                     train_gan= args.train_gan, \
                     experiment_dir=experiment_dir, resume=args.load_model, load_iter=args.load_iter)
 

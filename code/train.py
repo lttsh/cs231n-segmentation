@@ -11,7 +11,8 @@ from tensorboardX import SummaryWriter
 
 class Trainer():
     def __init__(self, generator, discriminator, train_loader, val_loader, \
-            gan_reg=1.0, d_iters=5, g_iters=5, weight_clip=1e-2, grad_clip=1e-1, disc_lr=1e-5, gen_lr=1e-2,
+            gan_reg=1.0, d_iters=5, g_iters=5, weight_clip=1e-2, grad_clip=1e-1, noise_scale=1e-2, \
+            disc_lr=1e-5, gen_lr=1e-2,
             train_gan=False, experiment_dir='./', resume=False, load_iter=None):
         """
         Training class for a specified model
@@ -43,7 +44,7 @@ class Trainer():
         self._val_loader = val_loader
 
         self._MCEcriterion = nn.CrossEntropyLoss() # self._train_loader.dataset.weights.to(self.device)) # Criterion for segmentation loss
-        
+
         self._genoptimizer = optim.Adam(self._gen.parameters(), lr=gen_lr, betas=(beta1, 0.999)) # Generator optimizer
         self.gan_reg = gan_reg
         self.d_iters = d_iters
@@ -54,6 +55,7 @@ class Trainer():
         self.best_mIOU = 0
         self.weight_clip = weight_clip
         self.grad_clip = grad_clip
+        self.noise_scale = noise_scale
         self.experiment_dir = experiment_dir
         self.best_path = os.path.join(experiment_dir, 'best.pth.tar')
         if resume:
@@ -89,7 +91,8 @@ class Trainer():
             d_loss = 0
             self._discoptimizer.zero_grad()
             scores_false = self._disc(mini_batch_data, converted_mask) # (B,)
-            scores_true = self._disc(mini_batch_data, 2 * mini_batch_labels - 1.0) # (B,)
+            jittered_labels = mini_batch_labels + self.noise_scale * (torch.randn_like(mini_batch_labels) + 0.5)
+            scores_true = self._disc(mini_batch_data, jittered_labels) # (B,)
             true_positive, true_negative = true_positive_and_negative(scores_true.detach().cpu(), scores_false.detach().cpu())
             # d_loss = torch.mean(scores_false) - torch.mean(scores_true)
             d_loss = self._BCEcriterion(scores_false, smooth_false_labels) + self._BCEcriterion(scores_true, smooth_true_labels)
@@ -232,7 +235,7 @@ class Trainer():
         else:
             print("=> no checkpoint found at '{}'".format(save_path))
 
-    
+
     '''
     Evaluation methods
     '''
@@ -246,12 +249,12 @@ class Trainer():
             data = data.to(self.device)
             labels = labels.float().to(self.device)
             preds = convert_to_mask(self._gen(data)).to(self.device) # B x C x H x W
-            
+
             if save_mask:
                 save_dir = os.path.join(self.experiment_dir, str(curr_iter))
                 if not os.path.exists(save_dir):
                     os.makedirs(save_dir)
-               
+
                 for i in range(len(data)):
                     img = de_normalize(data[i].detach().cpu().numpy())
                     gt_mask = gt_visual[i].detach().cpu().numpy()
@@ -259,7 +262,7 @@ class Trainer():
                     display_image = np.transpose(img, (1, 2, 0))
                     save_to_file(pred_mask, display_image, gt_mask, i, save_dir)
                 save_mask = False
-            
+
             if ignore_background:
                 labels = labels.narrow(1, 0, num_classes-1)
                 preds = preds.narrow(1, 0, num_classes-1)
