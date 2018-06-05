@@ -55,12 +55,12 @@ if __name__ == "__main__":
                         help='Weight clipping for W-GAN loss')
     parser.add_argument('--grad_clip', default=0.1, type=float,
                         help='Gradient clipping for GAN')
-    parser.add_argument('--gan_reg', default=1.0, type=float,
-                        help='Regularization strength from gan')
-    parser.add_argument('-d', '--d_iters', default=5, type=int,
-                        help='Number of training iterations for discriminator within one loop')
-    parser.add_argument('-g', '--g_iters', default=5, type=int,
-                        help='Number of training iterations for generator within one loop')
+    parser.add_argument('--gan_reg', default=1e-3, type=float,
+                        help='Regularization strength for gan')
+#     parser.add_argument('-d', '--d_iters', default=5, type=int,
+#                         help='Number of training iterations for discriminator within one loop')
+#     parser.add_argument('-g', '--g_iters', default=5, type=int,
+#                         help='Number of training iterations for generator within one loop')
     parser.add_argument('--generator_name', default='SegNet16', type=str,
                         help='Name of generator model to run')
     parser.add_argument('--use_bn', default='True', type=bool,
@@ -87,10 +87,8 @@ if __name__ == "__main__":
             args_dict['load_model'] = True
             args_dict['experiment_name'] = args.experiment_name
             args_dict['train_gan'] = args.train_gan
-            args_dict['g_iters'] = args.g_iters
             args_dict['batch_size'] = args.batch_size
             args_dict['gan_reg'] = args.gan_reg
-            args_dict['d_iters'] = args.d_iters
             args_dict['disc_lr'] = args.disc_lr
             args_dict['gen_lr'] = args_dict.gen_lr
 
@@ -115,9 +113,8 @@ if __name__ == "__main__":
         discriminator = GAN(NUM_CLASSES, segmentation_shape, image_shape)
 
     trainer = Trainer(generator, discriminator, train_loader, val_loader, \
-                    gan_reg=args.gan_reg, d_iters=args.d_iters, g_iters=args.g_iters,\
-                    weight_clip= args.weight_clip, grad_clip= args.grad_clip, disc_lr=args.disc_lr, gen_lr=args.gen_lr,
-                    train_gan= args.train_gan, \
+                    gan_reg=args.gan_reg, weight_clip=args.weight_clip, grad_clip=args.grad_clip, \
+                    disc_lr=args.disc_lr, gen_lr=args.gen_lr, train_gan= args.train_gan, \
                     experiment_dir=experiment_dir, resume=args.load_model, load_iter=args.load_iter)
 
     if args.mode == "train":
