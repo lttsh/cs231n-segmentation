@@ -15,7 +15,7 @@ if __name__ == "__main__":
     # Training parameters
     parser.add_argument('--epochs', default=20, type=int, metavar='N',
                         help='number of total epochs to run')
-    parser.add_argument('-b', '--batch_size', default=64, type=int,
+    parser.add_argument('-b', '--batch_size', default=32, type=int,
                         metavar='N', help='mini-batch size (default: 8)')
     parser.add_argument('-s', '--size', default=128, type=int,
                         help='size of images (default:128)')
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # GAN Hyperparameters
     parser.add_argument('--train_gan', type=bool, default=False,
                         help='decide whether to train GAN')
-    parser.add_argument('--disc_lr', default=1e-5, type=float,
+    parser.add_argument('--disc_lr', default=1e-4, type=float,
                         help='Learning rate for discriminator')
     parser.add_argument('--gen_lr', default=1e-4, type=float,
                         help='Learning rate for generator')
@@ -43,7 +43,7 @@ if __name__ == "__main__":
                         help='Gradient clipping for GAN')
     parser.add_argument('--noise_scale', default=1e-2, type=float,
                     help='std for gaussian noise added to the labels')
-    parser.add_argument('--gan_reg', default=1e-2, type=float,
+    parser.add_argument('--gan_reg', default=5e-4, type=float,
                         help='Regularization strength from gan')
     parser.add_argument('--generator_name', default='SegNet16', type=str,
                         help='Name of generator model to run')

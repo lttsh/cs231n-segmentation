@@ -35,11 +35,11 @@ class _DecoderBlock(nn.Module):
 
         layers += [
                     *Conv2d_BatchNorm2d(middle_channels, middle_channels, kernel_size=3, padding=1, use_bn=use_bn),
-                    nn.ReLU(),
+                    nn.LeakyReLU(),
                   ] * (num_conv_layers - 2)
         layers += [
             *Conv2d_BatchNorm2d(middle_channels, out_channels, kernel_size=3, padding=1, use_bn=use_bn),
-            nn.ReLU(),
+            nn.LeakyReLU(),
         ]
         self.decode = nn.Sequential(*layers)
 

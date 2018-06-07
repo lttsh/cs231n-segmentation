@@ -30,7 +30,6 @@ class Trainer():
         if self.train_gan:
             print ("Training GAN")
             self._disc = discriminator.cuda()
-            print(self._disc.get_device()
             self._discoptimizer = optim.Adam(self._disc.parameters(), lr=disc_lr, betas=(beta1, 0.999)) # Discriminator optimizer (needs to be separate)
             self._BCEcriterion = nn.BCEWithLogitsLoss()
         else:
@@ -89,7 +88,7 @@ class Trainer():
             self._disc.train()
             self._genoptimizer.zero_grad()
             converted_mask = nn.functional.sigmoid(gen_out.detach())
-            _, smooth_true_labels = smooth_labels(data.size()[0], self.device)
+            _, smooth_true_labels = smooth_labels(data.size()[0])
             false_scores = self._disc(data, converted_mask)
             segmentation_loss = self._MCEcriterion(gen_out, labels_flat)
             g_loss = self._BCEcriterion(false_scores, smooth_true_labels)
@@ -104,7 +103,7 @@ class Trainer():
             jittered_labels = labels + self.noise_scale * torch.randn_like(labels)
             true_scores = self._disc(data, jittered_labels) # (B,)
             # true_scores = self._disc(data, labels) # (B,)
-            smooth_false_labels, smooth_true_labels = smooth_labels(data.size()[0], self.device)
+            smooth_false_labels, smooth_true_labels = smooth_labels(data.size()[0])
             self._discoptimizer.zero_grad()      
             d_loss = self._BCEcriterion(false_scores, smooth_false_labels) + self._BCEcriterion(true_scores, smooth_true_labels)
             d_loss.backward()
@@ -191,7 +190,7 @@ class Trainer():
             save_dict['disc_dict'] = self._disc.state_dict()
             save_dict['disc_opt'] = self._discoptimizer.state_dict()
             save_dict['gan_reg'] = self.gan_reg
-        save_path = os.path.join(self.experiment_dir, str(total_iters) + '.pth.tar')
+        save_path = os.path.join(self.experiment_dir, 'last.pth.tar')
         torch.save(save_dict, save_path)
         print ("=> Saved checkpoint '{}'".format(save_path))
         if is_best:
@@ -261,6 +260,28 @@ class Trainer():
             pred_labels = np.argmax(mask_pred, axis=0).reshape((-1,))
             gt_labels = gt_visual.numpy().reshape((-1,))
             x = pred_labels + numClasses * gt_labels
+            bincount_2d = np.bincount(x.astype(np.int32),
+                                  minlength=numClasses ** 2)
+            assert bincount_2d.size == numClasses ** 2
+            conf = bincount_2d.reshape((numClasses, numClasses))
+            confusion_mat += conf
+        return confusion_mat
+    
+    def get_second_matrix(self, loader):
+        ''' Method to get matrix of second largest classes,
+        Assumes gt_visual is of size B x H x W
+        mask_pred is of size B x C x H x W
+        returns C x C numpy array '''
+        self._gen.eval()
+        numClasses = loader.dataset.numClasses
+        confusion_mat = np.zeros((numClasses, numClasses))
+        for data, mask_gt, gt_visual in loader:
+            data = data.cuda()
+            mask_pred = convert_to_mask(self._gen(data)).numpy()
+            mask_pred = np.transpose(mask_pred, (1, 0, 2, 3)) # C x B x H x W
+            second_largest = np.argsort(mask_pred, axis=0)[1].reshape((-1,))
+            gt_labels = gt_visual.numpy().reshape((-1,))
+            x = second_largest + numClasses * gt_labels
             bincount_2d = np.bincount(x.astype(np.int32),
                                   minlength=numClasses ** 2)
             assert bincount_2d.size == numClasses ** 2

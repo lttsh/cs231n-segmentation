@@ -140,7 +140,8 @@ def prep_style(cnn, style_img, style_size, style_layers):
     return style_img, style_targets
 
 def style_transfer(cnn, content_image, style_image, content_mask, image_size, style_size, content_layer, content_weight,
-                   style_layers, style_weights, tv_weight, max_iters, init_random=False, mask_layer=False, second_style_image=None):
+                   style_layers, style_weights, tv_weight, max_iters, init_random=False, mask_layer=False, second_style_image=None,
+                   display_masks=False):
     """
     Run style transfer!
     
@@ -189,11 +190,21 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, st
     feature_masks = None
     if mask_layer:
         feature_masks = get_soft_masks(content_mask, cnn, style_layers, style_size)
-        # for m in feature_masks:
-        #     m = m.detach().numpy().reshape(*(m.shape)[-2:])
-        #     plt.axis('off')
-        #     plt.imshow(m)
-        #     plt.show()
+        if display_masks:
+            plt.axis('off')
+            plt.imshow(content_image)
+            plt.savefig("original_mask.png")
+            plt.show()
+            plt.close()
+            for i, m in enumerate(feature_masks):
+                if m is None:
+                    continue
+                m = m.detach().numpy().reshape(*(m.shape)[-2:])
+                plt.axis('off')
+                plt.imshow(m, cmap='gray')
+                plt.savefig("feature_mask_{}.png".format(i))
+                plt.show()
+                plt.close()
         second_feature_masks = get_soft_masks(1.0 - content_mask, cnn, style_layers, style_size)
     loss_list = []
     for t in range(max_iters):
@@ -207,7 +218,8 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, st
         c_loss = content_loss(content_weight, feats[content_layer], content_target)
         s_loss = style_loss(feats, style_layers, style_targets, style_weights, feature_masks)
         if second_style_image is not None:
-            second_style_weights = [x / 10 for x in style_weights]
+#             second_style_weights = [x / 10 for x in style_weights]
+            second_style_weights = style_weights
             second_s_loss = style_loss(feats, style_layers, second_style_targets, second_style_weights, second_feature_masks)
             s_loss += second_s_loss
         t_loss = tv_loss(img, tv_weight)
@@ -220,8 +232,8 @@ def style_transfer(cnn, content_image, style_image, content_mask, image_size, st
 #             optimizer = torch.optim.Adam([img], lr=decayed_lr)
         optimizer.step()
 
-        if t % 100 == 0:
-            print("Iteration {},\tLoss: {},\tContent: {},\tStyle: {},\tTV: {}".format(t, loss, c_loss, s_loss, t_loss))
+#         if t % 100 == 0:
+#             print("Iteration {},\tLoss: {},\tContent: {},\tStyle: {},\tTV: {}".format(t, loss, c_loss, s_loss, t_loss))
 
     img = np.asarray(deprocess(img.data.cpu()), dtype=np.uint8)
 #     content_img = np.asarray(deprocess(content_img.cpu()), dtype=np.uint8)
@@ -267,7 +279,7 @@ def get_image_from_dataset(dataset, idx):
     channel = np.max(mask_max)  # get the background class (or if no background, class with highest index)
     img = PIL.Image.fromarray(np.uint8(img.numpy().transpose(1, 2, 0)*255.))
     mask = masks[channel]
-    return img, mask
+    return img, torch.Tensor(mask)
 
 def corresponding_filter(layer):
     if isinstance(layer, nn.Conv2d):
