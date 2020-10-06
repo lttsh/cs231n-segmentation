@@ -3,7 +3,7 @@
 ## Description 
 Code for the final project for CS231N (Spring 2018). We trained a semantic segmentation network adversarially to generate segmentation masks and use them to apply different styles to an image using masked style transfer. The final model was trained on the `animal` super-category in the MS-COCO dataset. 
 
-Details can be found in the report (to be posted) and [poster](https://drive.google.com/file/d/1blNW0WKBjmzc5Uv2hgqOX-Jt2cw2fwsS/view?usp=sharing).
+Details can be found in the [report](https://drive.google.com/file/d/1OQFm7FiAnpcaJTG-28J8Jz9zINvPOuIe/view?usp=sharing) and [poster](https://drive.google.com/file/d/1blNW0WKBjmzc5Uv2hgqOX-Jt2cw2fwsS/view?usp=sharing).
 
 ## Setup 
 
